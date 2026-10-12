@@ -1039,6 +1039,7 @@ impl TerminalManager {
         }
     }
     async fn start(&self, session: Arc<Session>, kind: &str) {
+        crate::otlp::count("t3_terminal_sessions_total", "Total terminal sessions started.", &[("lifecycle", kind)], 1.0);
         let (cwd, cols, rows, mut environment) = {
             let mut state = session.state.lock().unwrap();
             state.status = TerminalSessionStatus::Starting;
@@ -1519,6 +1520,7 @@ impl TerminalManager {
         &self,
         input: TerminalRestartInput,
     ) -> Result<TerminalSessionSnapshot, TerminalFailure> {
+        crate::otlp::count("t3_terminal_restarts_total", "Total terminal restart requests handled.", &[("scope", "thread")], 1.0);
         let _thread = self.thread_lock(input.thread_id.as_str()).await;
         let env = self.environment(
             input.provider_instance_id.as_ref().and_then(Option::as_ref),

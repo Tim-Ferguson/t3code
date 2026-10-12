@@ -14,18 +14,28 @@
 //! of an active thread then gains one `source: "stack"` link per layer it does not hold (a dismissed layer counts as held, so it is
 //! not brought back).
 //!
-//! Not ported: the refresh a shell command that merges asks for (`requestSync`), and the pause a rate-limited host asks for (a failed
-//! stack read is only retried on the next pass).
+//! `request_sync` (`requestSync`) names a pull request to read again at once, even when its snapshot is terminal, in a pass of its own
+//! that reads only what was named. It is asked for by `pullRequests.runAction` and `pullRequests.invalidate` after they act, by a client's
+//! reading that sees a pull request change state, by an event that links a pull request with no snapshot yet, and by the end of a run that
+//! ran `gh pr merge` or a like command (which sends no merge notification).
+//!
+//! A host that answers rate-limited is paused for the project that asked, until the time it names: the passes leave that host's pull
+//! requests due and read them again once the pause has ended, rather than failing each of them every minute. A pass reports its failed
+//! reads once per reason, not once per pull request.
 use crate::{
     execution::ExecutionService,
-    pull_request_service::{Env, PullRequestService},
+    pull_request_github::Reason,
+    pull_request_service::{Env, PrError, PullRequestService},
     thread_pull_requests::{normalize, visible},
 };
 use chrono::{SecondsFormat, Utc};
 use serde_json::{Value, json};
 use std::{
     collections::{HashMap, HashSet},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+    },
     time::Duration,
 };
 
@@ -96,6 +106,42 @@ fn due(entries: &[Entry], since_last_read: Option<Duration>) -> bool {
     since_last_read.is_none_or(|elapsed| elapsed >= SLOW_SYNC)
 }
 
+/// `threadPullRequestKeyOf` of a link or a key: the host-level identity requests are filed under.
+fn pr_key(link: &Value) -> String {
+    let key = normalize(link);
+    format!("{}/{}#{}", key["host"].as_str().unwrap_or_default(), key["repository"].as_str().unwrap_or_default(), key["number"])
+}
+
+/// Shell commands that can merge or close a pull request without a merge notification (`PULL_REQUEST_CLOSE_COMMAND`).
+fn closes_pull_request(command: &str) -> bool {
+    static PATTERN: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| regex::Regex::new(r"(?-u:\b)(?:gh\s+pr|glab\s+mr)\s+(?:merge|close)(?-u:\b)").unwrap());
+    PATTERN.is_match(command)
+}
+
+/// What a pass reads: every due pull request, or only those `request_sync` named.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Scope {
+    All,
+    Requested,
+}
+
+/// `rateLimitRetryAt`: when the host's pause ends, if a failed read says the host is rate limited.
+fn rate_limit_retry_at(error: &PrError) -> Option<i64> {
+    match error {
+        PrError::Operation { reason: Some(Reason::RateLimited), retry_at, .. } => *retry_at,
+        _ => None,
+    }
+}
+
+/// `skipReason`: the failure's own words, which is what a pass groups its skips by.
+fn skip_reason(error: &PrError) -> String {
+    let wire = error.wire();
+    match error {
+        PrError::Operation { error, .. } => error.message(),
+        PrError::Unavailable(_) => wire["message"].as_str().or(wire["_tag"].as_str()).unwrap_or("unavailable").to_owned(),
+    }
+}
+
 struct Inner {
     execution: ExecutionService,
     env: Env,
@@ -103,6 +149,21 @@ struct Inner {
     last_read: Mutex<HashMap<String, std::time::Instant>>,
     /// Pull requests whose stack read failed, or whose write did, until a pass completes them.
     retry_stacks: Mutex<HashSet<String>>,
+    /// The pull requests `request_sync` named, by `pr_key`, with the generation of the request: a request that arrives while the host is
+    /// being read belongs to the next pass.
+    requested: Mutex<HashMap<String, u64>>,
+    generation: AtomicU64,
+    /// Requests wait for one queued pass, so a burst of links (an agent linking dozens of pull requests) is read together.
+    requested_pass_queued: AtomicBool,
+    /// Rate limit pauses by project and host, since each project reads with its own credential: until when (epoch milliseconds). A paused
+    /// host refuses every read without being asked, so a pass leaves its pull requests due until the pause ends rather than failing each
+    /// of them every minute.
+    paused_until: Mutex<HashMap<String, i64>>,
+    /// One pass at a time (the original's drainable worker).
+    passes: tokio::sync::Mutex<()>,
+    queued: Mutex<Vec<tokio::task::JoinHandle<()>>>,
+    /// Threads whose current run ran a merge or close command, until that run ends.
+    close_command_threads: Mutex<HashSet<String>>,
 }
 
 #[derive(Clone)]
@@ -110,9 +171,66 @@ pub struct PullRequestSync {
     inner: Arc<Inner>,
 }
 
+#[derive(Default)]
+struct Slot(std::sync::OnceLock<PullRequestSync>);
+
 impl PullRequestSync {
     pub fn new(execution: ExecutionService, env: Env, service: Arc<PullRequestService>) -> Self {
-        Self { inner: Arc::new(Inner { execution, env, service, last_read: Mutex::default(), retry_stacks: Mutex::default() }) }
+        Self {
+            inner: Arc::new(Inner {
+                execution,
+                env,
+                service,
+                last_read: Mutex::default(),
+                retry_stacks: Mutex::default(),
+                requested: Mutex::default(),
+                generation: AtomicU64::new(0),
+                requested_pass_queued: AtomicBool::new(false),
+                paused_until: Mutex::default(),
+                passes: tokio::sync::Mutex::new(()),
+                queued: Mutex::default(),
+                close_command_threads: Mutex::default(),
+            }),
+        }
+    }
+
+    /// The sync the server runs (`spawn_timer` installs it), which the socket methods that change a pull request ask to read it.
+    pub fn current(store: &crate::persistence::Store) -> Option<Self> {
+        store.extension(Slot::default).0.get().cloned()
+    }
+
+    /// Forces the next pass to read this pull request again, even when its snapshot is terminal (`requestSync`). `key` names it by
+    /// `host`, `repository` and `number`, as a thread's link does. While its host is rate limited, the read waits for the first pass after
+    /// the pause. Needs a runtime: the pass is queued on one.
+    pub fn request_sync(&self, key: &Value) {
+        let generation = self.inner.generation.fetch_add(1, Ordering::SeqCst) + 1;
+        self.inner.requested.lock().unwrap().insert(pr_key(key), generation);
+        if self.inner.requested_pass_queued.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let sync = self.clone();
+        let task = tokio::spawn(async move {
+            let _turn = sync.inner.passes.lock().await;
+            // Requests from here on queue another pass; the ones already recorded are read by this.
+            sync.inner.requested_pass_queued.store(false, Ordering::SeqCst);
+            sync.pass(Scope::Requested).await;
+        });
+        let mut queued = self.inner.queued.lock().unwrap();
+        queued.retain(|task| !task.is_finished());
+        queued.push(task);
+    }
+
+    /// Waits for the passes `request_sync` queued.
+    pub async fn drain(&self) {
+        loop {
+            let tasks: Vec<_> = self.inner.queued.lock().unwrap().drain(..).collect();
+            if tasks.is_empty() {
+                return;
+            }
+            for task in tasks {
+                let _ = task.await;
+            }
+        }
     }
 
     /// The links of active threads, grouped by pull request.
@@ -136,106 +254,223 @@ impl PullRequestSync {
 
     /// One pass: every due pull request is read once and its changed snapshots are written back.
     pub async fn sweep(&self) {
+        let _turn = self.inner.passes.lock().await;
+        self.pass(Scope::All).await;
+    }
+
+    async fn pass(&self, scope: Scope) {
         let groups = self.groups();
         self.inner.last_read.lock().unwrap().retain(|key, _| groups.contains_key(key));
         self.inner.retry_stacks.lock().unwrap().retain(|key| groups.contains_key(key));
+        {
+            let held: HashSet<String> = groups.values().filter_map(|entries| entries.first()).map(|entry| pr_key(&entry.link)).collect();
+            self.inner.requested.lock().unwrap().retain(|key, _| held.contains(key));
+        }
         // Layers linked this pass, so two links of one thread that share a stack do not both add the same sibling.
         let mut linked_this_pass: HashSet<String> = HashSet::new();
+        // Failed host reads by reason: how many, and the first pull request that failed that way.
+        let mut skips: Vec<(String, usize, String)> = vec![];
         for (key, entries) in groups {
+            let first = &entries[0];
+            let requested = self.inner.requested.lock().unwrap().get(&pr_key(&first.link)).copied();
             let since = self.inner.last_read.lock().unwrap().get(&key).map(|read| read.elapsed());
-            if !due(&entries, since) && !self.inner.retry_stacks.lock().unwrap().contains(&key) {
+            let wanted = requested.is_some() || self.inner.retry_stacks.lock().unwrap().contains(&key) || due(&entries, since);
+            if !(wanted && (scope == Scope::All || requested.is_some())) {
                 continue;
             }
-            let first = &entries[0];
-            let normalized = normalize(&first.link);
-            let reference = json!({"projectId":first.project_id,"host":normalized["host"],"repository":first.link["repository"],"number":first.link["number"]});
-            let Ok(reference) = serde_json::from_value::<t3_contracts::PullRequestRef>(reference) else { continue };
-            let summary = match self.inner.service.summary(&self.inner.env, &reference, None, false).await {
-                Ok(summary) => serde_json::to_value(summary).unwrap_or(Value::Null),
+            // Checked against the clock as each read starts, so a pause found earlier in this pass holds the rest, and one that ends
+            // during the pass lets the rest through.
+            let pause_key = format!("{}\0{}", first.project_id, normalize(&first.link)["host"].as_str().unwrap_or_default());
+            if self.inner.paused_until.lock().unwrap().get(&pause_key).is_some_and(|until| *until > self.inner.service.now_ms()) {
+                continue;
+            }
+            if let Err(error) = self.sync_group(&key, &entries, requested, &mut linked_this_pass).await {
+                if let Some(retry_at) = rate_limit_retry_at(&error) {
+                    let mut paused = self.inner.paused_until.lock().unwrap();
+                    let until = paused.get(&pause_key).copied().unwrap_or(0).max(retry_at);
+                    paused.insert(pause_key, until);
+                }
+                let reason = skip_reason(&error);
+                match skips.iter_mut().find(|(known, ..)| *known == reason) {
+                    Some((_, count, _)) => *count += 1,
+                    None => skips.push((reason, 1, key)),
+                }
+            }
+        }
+        // A host failure such as a signed-out CLI fails every due pull request the same way, so a pass reports one line per reason rather
+        // than one per pull request.
+        for (reason, count, key) in skips {
+            tracing::warn!(count, pull_request = %key, %reason, "pull request sync skipped");
+        }
+    }
+
+    /// Reads one pull request and writes back what changed for each thread that links it. A failed host read is the error.
+    async fn sync_group(&self, key: &str, entries: &[Entry], requested: Option<u64>, linked_this_pass: &mut HashSet<String>) -> Result<(), PrError> {
+        let first = &entries[0];
+        let normalized = normalize(&first.link);
+        let reference = json!({"projectId":first.project_id,"host":normalized["host"],"repository":first.link["repository"],"number":first.link["number"]});
+        let Ok(reference) = serde_json::from_value::<t3_contracts::PullRequestRef>(reference) else { return Ok(()) };
+        // A requested read goes to the host, not to what the readers hold.
+        if requested.is_some() {
+            let invalidate = t3_contracts::PullRequestInvalidateInput { reference: Some(reference.clone()), files_viewed_only: None };
+            self.inner.service.invalidate(&self.inner.env, &invalidate, false).await;
+        }
+        let summary = serde_json::to_value(self.inner.service.summary(&self.inner.env, &reference, None, false).await?).unwrap_or(Value::Null);
+        let fields = snapshot_fields(&summary);
+        // The stack is read when something about the pull request moved; a summary that says it is in no stack, for links that hold none,
+        // already answers what the stack read would.
+        let needs_stack = requested.is_some()
+            || self.inner.retry_stacks.lock().unwrap().contains(key)
+            || entries.iter().any(|entry| entry.link["snapshot"].is_null() || !same_snapshot(&entry.link["snapshot"], &fields) || (summary.get("stack").is_some() && entry.link["stack"]["number"] != summary["stack"]["number"]));
+        let known_unstacked = summary.get("stack").is_some_and(Value::is_null) && entries.iter().all(|entry| entry.link["stack"].is_null());
+        // `Some(None)` is a pull request in no stack; `None` is a stack that was not read.
+        let fetched: Option<Option<Value>> = if !needs_stack {
+            None
+        } else if known_unstacked {
+            Some(None)
+        } else {
+            match self.inner.service.stack(&self.inner.env, &reference, None, false).await {
+                Ok(stack) => Some(stack.as_ref().map(thread_stack)),
                 Err(error) => {
-                    tracing::warn!(pull_request = %key, ?error, "pull request sync skipped");
+                    self.inner.retry_stacks.lock().unwrap().insert(key.to_owned());
+                    // The pass records a rate limit's pause and holds the host's other reads until it ends.
+                    if rate_limit_retry_at(&error).is_some() {
+                        return Err(error);
+                    }
+                    tracing::warn!(pull_request = %key, "pull request stack lookup failed");
+                    return Ok(());
+                }
+            }
+        };
+        if needs_stack {
+            self.inner.retry_stacks.lock().unwrap().remove(key);
+        }
+        // The host answered, so the cadence clock ticks even if a write below is rejected.
+        self.inner.last_read.lock().unwrap().insert(key.to_owned(), std::time::Instant::now());
+        // A refresh requested while the host read was in flight belongs to the next pass.
+        {
+            let mut held = self.inner.requested.lock().unwrap();
+            let name = pr_key(&first.link);
+            if held.get(&name).copied() == requested {
+                held.remove(&name);
+            }
+        }
+        let now = Utc::now();
+        for entry in entries {
+            let current_stack = entry.link.get("stack").cloned().unwrap_or(Value::Null);
+            let next_stack = match &fetched {
+                Some(stack) => stack.clone().unwrap_or(Value::Null),
+                None => current_stack.clone(),
+            };
+            let changed = entry.link["snapshot"].is_null() || !same_snapshot(&entry.link["snapshot"], &fields) || !same_stack(&current_stack, &next_stack);
+            // Siblings are filed before a terminal snapshot can settle the thread. A settled thread that shares the pull request
+            // takes the fresh snapshot but gains no links.
+            let layers = if entry.unsettled { next_stack["layers"].as_array().filter(|_| fetched.is_some()).cloned().unwrap_or_default() } else { vec![] };
+            let host = normalize(&entry.link)["host"].clone();
+            let mut failed = false;
+            for layer in layers {
+                let layer_key = json!({"host":host,"repository":entry.link["repository"],"number":layer["number"]});
+                let normalized = normalize(&layer_key);
+                let dedupe = format!("{}:{}/{}#{}", entry.thread_id, normalized["host"].as_str().unwrap_or_default(), normalized["repository"].as_str().unwrap_or_default(), normalized["number"]);
+                if linked_this_pass.contains(&dedupe) || entry.thread_links.iter().any(|existing| normalize(existing) == normalized) {
                     continue;
                 }
-            };
-            let fields = snapshot_fields(&summary);
-            // The stack is read when something about the pull request moved; a summary that says it is in no stack, for links that
-            // hold none, already answers what the stack read would.
-            let needs_stack = self.inner.retry_stacks.lock().unwrap().contains(&key)
-                || entries.iter().any(|entry| entry.link["snapshot"].is_null() || !same_snapshot(&entry.link["snapshot"], &fields) || (summary.get("stack").is_some() && entry.link["stack"]["number"] != summary["stack"]["number"]));
-            let known_unstacked = summary.get("stack").is_some_and(Value::is_null) && entries.iter().all(|entry| entry.link["stack"].is_null());
-            // `Some(None)` is a pull request in no stack; `None` is a stack that was not read.
-            let fetched: Option<Option<Value>> = if !needs_stack {
-                None
-            } else if known_unstacked {
-                Some(None)
-            } else {
-                match self.inner.service.stack(&self.inner.env, &reference, None, false).await {
-                    Ok(stack) => Some(stack.as_ref().map(thread_stack)),
-                    Err(error) => {
-                        tracing::warn!(pull_request = %key, ?error, "pull request stack lookup failed");
-                        self.inner.retry_stacks.lock().unwrap().insert(key);
-                        continue;
-                    }
+                let Some(url) = entry.link["url"].as_str().zip(layer["number"].as_u64()).and_then(|(url, number)| crate::thread_pull_requests::sibling_pull_request_url(url, number)) else { continue };
+                let command = json!({"type":"thread.pull-request.link","commandId":format!("server:pr-stack-link:{}:{}",entry.thread_id,uuid::Uuid::new_v4()),"threadId":entry.thread_id,"host":layer_key["host"],"repository":layer_key["repository"],"number":layer_key["number"],"url":url,"source":"stack"});
+                let store = self.inner.execution.store.clone();
+                let outcome = tokio::task::spawn_blocking(move || crate::thread::ThreadService::new(store).dispatch(&command, now)).await;
+                if !matches!(outcome, Ok(Ok(_))) {
+                    failed = true;
+                    break;
                 }
-            };
-            if needs_stack {
-                self.inner.retry_stacks.lock().unwrap().remove(&key);
+                linked_this_pass.insert(dedupe);
             }
-            // The host answered, so the cadence clock ticks even if a write below is rejected.
-            self.inner.last_read.lock().unwrap().insert(key.clone(), std::time::Instant::now());
-            let now = Utc::now();
-            for entry in &entries {
-                let current_stack = entry.link.get("stack").cloned().unwrap_or(Value::Null);
-                let next_stack = match &fetched {
-                    Some(stack) => stack.clone().unwrap_or(Value::Null),
-                    None => current_stack.clone(),
-                };
-                let changed = entry.link["snapshot"].is_null() || !same_snapshot(&entry.link["snapshot"], &fields) || !same_stack(&current_stack, &next_stack);
-                // Siblings are filed before a terminal snapshot can settle the thread. A settled thread that shares the pull request
-                // takes the fresh snapshot but gains no links.
-                let layers = if entry.unsettled { next_stack["layers"].as_array().filter(|_| fetched.is_some()).cloned().unwrap_or_default() } else { vec![] };
-                let host = normalize(&entry.link)["host"].clone();
-                let mut failed = false;
-                for layer in layers {
-                    let layer_key = json!({"host":host,"repository":entry.link["repository"],"number":layer["number"]});
-                    let normalized = normalize(&layer_key);
-                    let dedupe = format!("{}:{}/{}#{}", entry.thread_id, normalized["host"].as_str().unwrap_or_default(), normalized["repository"].as_str().unwrap_or_default(), normalized["number"]);
-                    if linked_this_pass.contains(&dedupe) || entry.thread_links.iter().any(|existing| normalize(existing) == normalized) {
-                        continue;
-                    }
-                    let Some(url) = entry.link["url"].as_str().zip(layer["number"].as_u64()).and_then(|(url, number)| crate::thread_pull_requests::sibling_pull_request_url(url, number)) else { continue };
-                    let command = json!({"type":"thread.pull-request.link","commandId":format!("server:pr-stack-link:{}:{}",entry.thread_id,uuid::Uuid::new_v4()),"threadId":entry.thread_id,"host":layer_key["host"],"repository":layer_key["repository"],"number":layer_key["number"],"url":url,"source":"stack"});
-                    let store = self.inner.execution.store.clone();
-                    let outcome = tokio::task::spawn_blocking(move || crate::thread::ThreadService::new(store).dispatch(&command, now)).await;
-                    if !matches!(outcome, Ok(Ok(_))) {
-                        failed = true;
-                        break;
-                    }
-                    linked_this_pass.insert(dedupe);
-                }
-                if !failed && changed {
-                    let mut snapshot = fields.clone();
-                    snapshot["syncedAt"] = json!(now.to_rfc3339_opts(SecondsFormat::Millis, true));
-                    let command = json!({"type":"thread.pull-request-link.sync","commandId":format!("server:pr-sync:{}:{}",entry.thread_id,uuid::Uuid::new_v4()),"threadId":entry.thread_id,"host":host,"repository":entry.link["repository"],"number":entry.link["number"],"snapshot":snapshot,"stack":next_stack});
-                    let store = self.inner.execution.store.clone();
-                    let outcome = tokio::task::spawn_blocking(move || crate::service_commands::dispatch(&store, None, &command, now)).await;
-                    failed = !matches!(outcome, Ok(Ok(_)));
-                }
-                if failed {
-                    self.inner.retry_stacks.lock().unwrap().insert(key.clone());
-                    tracing::warn!(thread = %entry.thread_id, pull_request = %key, "pull request sync skipped");
-                }
+            if !failed && changed {
+                let mut snapshot = fields.clone();
+                snapshot["syncedAt"] = json!(now.to_rfc3339_opts(SecondsFormat::Millis, true));
+                let command = json!({"type":"thread.pull-request-link.sync","commandId":format!("server:pr-sync:{}:{}",entry.thread_id,uuid::Uuid::new_v4()),"threadId":entry.thread_id,"host":host,"repository":entry.link["repository"],"number":entry.link["number"],"snapshot":snapshot,"stack":next_stack});
+                let store = self.inner.execution.store.clone();
+                let outcome = tokio::task::spawn_blocking(move || crate::service_commands::dispatch(&store, None, &command, now)).await;
+                failed = !matches!(outcome, Ok(Ok(_)));
+            }
+            if failed {
+                self.inner.retry_stacks.lock().unwrap().insert(key.to_owned());
+                tracing::warn!(thread = %entry.thread_id, pull_request = %key, "pull request sync skipped");
+            }
+        }
+        Ok(())
+    }
+
+    /// `refreshOpenLinks`: after a run that ran a merge or close command, the thread's open links are read fresh, so settlement does not
+    /// wait for the next pass and the cached summary.
+    fn refresh_open_links(&self, thread_id: &str) {
+        let Ok(Some(projection)) = self.inner.execution.store.projection("thread", thread_id) else { return };
+        for link in visible(&crate::thread_pull_requests::links(&projection["thread"])) {
+            if link["snapshot"]["state"] == "open" {
+                self.request_sync(&link);
             }
         }
     }
 
-    /// Sweeps once a minute for as long as the server runs.
+    /// What a committed event asks of the sync (the original's `start` streams).
+    fn on_event(&self, event: &crate::persistence::Event) {
+        let thread_id = event.payload["threadId"].as_str().unwrap_or(&event.aggregate_id);
+        match event.event_type.as_str() {
+            // A link with no snapshot is read soon.
+            "thread.pull-request-synced" => {
+                for link in visible(&crate::thread_pull_requests::links(&event.payload)) {
+                    if link["snapshot"].is_null() {
+                        self.request_sync(&link);
+                    }
+                }
+            }
+            // An agent can merge or close its pull request from a shell (`gh pr merge`), which sends no merge notification. Other runs add
+            // no host reads.
+            "turn-item.updated" => {
+                if event.payload["type"] == "command_execution" && event.payload["input"].as_str().is_some_and(closes_pull_request) {
+                    self.inner.close_command_threads.lock().unwrap().insert(thread_id.to_owned());
+                }
+            }
+            "run.updated" => {
+                let terminal = matches!(event.payload["status"].as_str(), Some("completed" | "failed" | "cancelled" | "interrupted" | "rolled_back"));
+                if terminal && self.inner.close_command_threads.lock().unwrap().remove(thread_id) {
+                    self.refresh_open_links(thread_id);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Sweeps once a minute for as long as the server runs, and reads the pull requests that `request_sync` is asked for: by the events
+    /// that link a pull request, end a run that ran a merge command, and by a client's reading that sees a pull request change state.
+    /// Installs itself as the server's sync.
     pub fn spawn_timer(&self) {
+        let _ = self.inner.execution.store.extension(Slot::default).0.set(self.clone());
         let sync = self.clone();
         tokio::spawn(async move {
             loop {
                 sync.sweep().await;
                 tokio::time::sleep(SWEEP).await;
+            }
+        });
+        let (sync, mut events) = (self.clone(), self.inner.execution.store.subscribe());
+        tokio::spawn(async move {
+            loop {
+                match events.recv().await {
+                    Ok(batch) => batch.iter().for_each(|stored| sync.on_event(&stored.event)),
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+                }
+            }
+        });
+        let (sync, mut changes) = (self.clone(), self.inner.service.subscribe_state_changes());
+        tokio::spawn(async move {
+            loop {
+                match changes.recv().await {
+                    Ok(key) => sync.request_sync(&key),
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+                }
             }
         });
     }
@@ -276,6 +511,34 @@ mod tests {
         assert!(due(&[entry(closed, true)], None));
         // A settled thread's open snapshot does not keep the pull request being read.
         assert!(!due(&[entry(open, false), entry(merged, true)], None));
+    }
+
+    #[test]
+    fn a_shell_command_that_merges_or_closes_a_pull_request_is_known_by_its_words() {
+        for command in ["gh pr merge 12 --squash", "cd x && gh  pr\tclose 3", "glab mr merge 4", "echo done; gh pr merge"] {
+            assert!(closes_pull_request(command), "{command}");
+        }
+        for command in ["gh pr view 12", "gh pr merged", "ggh pr merge", "gh pr list --state merge", "glab mr create"] {
+            assert!(!closes_pull_request(command), "{command}");
+        }
+    }
+
+    #[test]
+    fn requests_are_filed_under_the_host_level_identity_of_the_pull_request() {
+        let link = json!({"host":"GitHub.com","repository":"Acme/Web","number":7,"url":"https://github.com/acme/web/pull/7"});
+        assert_eq!(pr_key(&link), "github.com/acme/web#7");
+        assert_eq!(pr_key(&json!({"host":"github.com","repository":"acme/web","number":7})), pr_key(&link));
+    }
+
+    #[test]
+    fn only_a_rate_limited_failure_that_names_its_end_pauses_the_host() {
+        let limited = |retry_at| PrError::Operation { error: t3_contracts::PullRequestOperationError::new("summary", "slow down"), reason: Some(Reason::RateLimited), retry_at };
+        assert_eq!(rate_limit_retry_at(&limited(Some(5_000))), Some(5_000));
+        assert_eq!(rate_limit_retry_at(&limited(None)), None);
+        let failed = PrError::Operation { error: t3_contracts::PullRequestOperationError::new("summary", "boom"), reason: Some(Reason::Failed), retry_at: Some(5_000) };
+        assert_eq!(rate_limit_retry_at(&failed), None);
+        assert_eq!(skip_reason(&failed), "Pull request operation summary failed: boom");
+        assert_eq!(rate_limit_retry_at(&PrError::unsupported()), None);
     }
 
     #[test]

@@ -272,6 +272,13 @@ impl SecretRequests {
     /// Reads and deletes a ref's value. Fails for unknown or used refs, and for refs entered in
     /// another project.
     pub fn consume(&self, reference: &str, project_id: &str) -> Result<String, SecretRequestError> {
+        let result = self.consume_ref(reference, project_id);
+        let outcome = if result.is_ok() { "used" } else { "rejected" };
+        crate::otlp::count("t3_secret_refs_consumed_total", "Secret refs tools tried to use, by result.", &[("result", outcome)], 1.0);
+        result
+    }
+
+    fn consume_ref(&self, reference: &str, project_id: &str) -> Result<String, SecretRequestError> {
         // Get and remove are separate store calls; one consumer at a time keeps two concurrent
         // calls from both reading a ref before either deletes it.
         static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());

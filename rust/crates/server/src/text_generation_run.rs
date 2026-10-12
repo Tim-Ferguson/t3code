@@ -18,6 +18,8 @@
 use crate::{
     claude_instance::ClaudeInstance,
     codex::{CodexInstance, tokenize_cli_args},
+    codex_managed::Effective,
+    provider_auth_flow::StopSession,
     provider_registry::{ProviderRegistry, TextInstance},
     text_generation::{Operation, Request, Runner, Shape, TextGenerationError},
 };
@@ -244,6 +246,28 @@ impl Drop for Scratch {
     }
 }
 
+/// `resolveRuntime` of `makeCodexTextGeneration`: what a managed Codex instance (signed in with ChatGPT) runs on, resolved for each
+/// request (`CodexManagedProvider.ts` gives it `withAccess(runtime.resolve)`). `stop` is called when the sign-in is replaced or signed out
+/// while the request runs, and when the returned guard is released; the guard keeps the sign-in admitted for as long as it lives.
+pub trait ManagedRuntime: Send + Sync {
+    fn resolve(&self, stop: StopSession) -> BoxFuture<'_, Result<(Effective, Box<dyn std::any::Any + Send>), t3_contracts::ProviderSetupError>>;
+}
+
+/// How a request starts the CLI.
+enum Launch {
+    /// `CodexInstance::launch`: the instance's own binary, environment and launch arguments.
+    Local(PathBuf, HashMap<String, String>, String),
+    Managed(Arc<dyn ManagedRuntime>),
+}
+
+/// Tells a stop of the sign-in that the request it ended is gone (its child killed), whichever way the request ended.
+struct RunEnded(tokio::sync::watch::Sender<bool>);
+impl Drop for RunEnded {
+    fn drop(&mut self) {
+        self.0.send_replace(true);
+    }
+}
+
 /// A provider's CLI as the thing a request runs on. The instance is read from the registry on every
 /// request, so a settings change takes effect on the next generation.
 pub struct CliRunner {
@@ -309,14 +333,19 @@ impl CliRunner {
         Self { instances, options: Arc::new(move || options.clone()), attachments_dir }
     }
 
-    async fn codex(&self, instance: CodexInstance, models: Vec<Value>, request: Request) -> Result<Value, TextGenerationError> {
+    async fn codex(&self, instance: CodexInstance, models: Vec<Value>, managed: Option<Arc<dyn ManagedRuntime>>, request: Request) -> Result<Value, TextGenerationError> {
         let operation = request.operation;
         let failed = |detail: &str| TextGenerationError::new(operation, detail);
         if !instance.enabled {
             return Err(failed("Codex is disabled in T3 Code settings."));
         }
-        let (binary, environment, launch_args) = instance.launch().map_err(|error| failed(&error.to_string()))?;
-        let binary = if binary.as_os_str().is_empty() { PathBuf::from("codex") } else { binary };
+        let launch = match managed {
+            Some(runtime) => Launch::Managed(runtime),
+            None => {
+                let (binary, environment, launch_args) = instance.launch().map_err(|error| failed(&error.to_string()))?;
+                Launch::Local(binary, environment, launch_args)
+            }
+        };
         let image_paths: Vec<String> = request
             .attachments
             .iter()
@@ -332,13 +361,44 @@ impl CliRunner {
         let (Ok(schema_path), Ok(output_path)) = (schema_dir.file(&schema), output_dir.file("")) else { return Err(failed("Failed to write temp file")) };
         let model = codex_model(request.model_selection["model"].as_str().unwrap_or(""), &models);
         let effort = string_option(&request.model_selection, "reasoningEffort").unwrap_or_else(|| crate::text_generation::data()["defaults"]["reasoningEffort"].as_str().unwrap_or("low")).to_string();
-        let tier = codex_service_tier(&request.model_selection);
-        let args = codex_args(&CodexRun { launch_args: &launch_args, model: &model, reasoning_effort: &effort, service_tier: tier.as_deref(), schema_path: &schema_path, output_path: &output_path, image_paths: &image_paths });
-        let run = spawn(&binary, &args, &environment, Path::new(&request.cwd), request.prompt.clone());
-        let finished = match tokio::time::timeout(self.timeout(), run).await {
+        // A sign-in that is replaced or ended while this runs stops it (`withAccess`); a stop waits until the run is gone.
+        let (ended, ended_signal) = tokio::sync::watch::channel(false);
+        let _ended = RunEnded(ended);
+        let stopped = Arc::new(tokio::sync::Notify::new());
+        let run = async {
+            let (binary, environment, launch_args, tier, access) = match launch {
+                Launch::Local(binary, environment, launch_args) => (binary, environment, launch_args, codex_service_tier(&request.model_selection), None),
+                Launch::Managed(runtime) => {
+                    let stop: StopSession = {
+                        let (stopped, ended) = (stopped.clone(), ended_signal.clone());
+                        Arc::new(move || {
+                            stopped.notify_one();
+                            let mut ended = ended.clone();
+                            Box::pin(async move {
+                                let _ = ended.wait_for(|ended| *ended).await;
+                            })
+                        })
+                    };
+                    let (effective, access) = runtime.resolve(stop).await.map_err(|error| failed(&error.detail))?;
+                    // ChatGPT token sharing takes no service tier.
+                    (effective.binary, effective.environment, effective.launch_args, None, Some(access))
+                }
+            };
+            let binary = if binary.as_os_str().is_empty() { PathBuf::from("codex") } else { binary };
+            let args = codex_args(&CodexRun { launch_args: &launch_args, model: &model, reasoning_effort: &effort, service_tier: tier.as_deref(), schema_path: &schema_path, output_path: &output_path, image_paths: &image_paths });
+            let finished = spawn(&binary, &args, &environment, Path::new(&request.cwd), request.prompt.clone()).await.map_err(|_| spawn_failure(operation, "Codex"))?;
+            Ok::<_, TextGenerationError>((finished, access))
+        };
+        let outcome = tokio::select! {
+            biased;
+            _ = stopped.notified() => return Err(failed("Codex text generation failed.")),
+            outcome = tokio::time::timeout(self.timeout(), run) => outcome,
+        };
+        // The sign-in stays admitted until the answer is read.
+        let (finished, _access) = match outcome {
             Err(_) => return Err(failed("Codex CLI request timed out.")),
-            Ok(Err(_)) => return Err(spawn_failure(operation, "Codex")),
-            Ok(Ok(finished)) => finished,
+            Ok(Err(error)) => return Err(error),
+            Ok(Ok(run)) => run,
         };
         if finished.code != 0 {
             return Err(exit_failure(operation, "Codex", &finished));
@@ -439,7 +499,8 @@ impl Runner for CliRunner {
             let id = request.model_selection["instanceId"].as_str().unwrap_or("").to_string();
             match (self.instances)(&id) {
                 None => Err(TextGenerationError::new(request.operation, format!("No provider instance registered for id '{id}'."))),
-                Some(TextInstance::Codex(instance, models)) => Box::pin(self.codex(instance, models, request)).await,
+                Some(TextInstance::Codex(instance, models)) => Box::pin(self.codex(instance, models, None, request)).await,
+                Some(TextInstance::ManagedCodex(instance, models, runtime)) => Box::pin(self.codex(instance, models, Some(runtime), request)).await,
                 Some(TextInstance::Claude(instance)) => Box::pin(self.claude(instance, request)).await,
                 Some(TextInstance::Pi(instance)) => Box::pin(self.pi(instance, request)).await,
                 Some(TextInstance::OpenCode(instance, clock)) => Box::pin(self.opencode(instance, clock, request)).await,

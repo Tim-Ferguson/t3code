@@ -18,7 +18,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, OnceLock},
+    sync::{Arc, Mutex, OnceLock, atomic::{AtomicUsize, Ordering}},
     time::Duration,
 };
 use t3_contracts::{ProviderInstallCancelInput, ProviderInstanceId, ProviderSetupError, ProviderSetupErrorTag};
@@ -173,9 +173,27 @@ struct Inner {
     changes: broadcast::Sender<Arc<Value>>,
     running: Mutex<Option<(String, tokio::task::JoinHandle<()>)>>,
     local: Mutex<HashMap<String, (String, Option<Executable>)>>,
+    /// The leases `acquire` has given out and not yet seen released.
+    leases: AtomicUsize,
 }
 #[derive(Clone)]
 pub struct CodexInstallation(Arc<Inner>);
+
+/// What `acquire` gives with the executable (`CodexInstallation.acquire`'s scope): a Codex process, or a sign-in that runs on the
+/// runtime, holds it for as long as it lives, and the runtime is not removed while any is held. Cloning shares the one lease.
+#[derive(Clone)]
+pub struct Lease(Arc<LeaseGuard>);
+struct LeaseGuard(Arc<Inner>);
+impl Drop for LeaseGuard {
+    fn drop(&mut self) {
+        self.0.leases.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+impl std::fmt::Debug for Lease {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("Lease")
+    }
+}
 
 fn is_running(state: &Value) -> bool {
     matches!(state["phase"].as_str(), Some("downloading" | "extracting" | "verifying"))
@@ -240,6 +258,7 @@ impl CodexInstallation {
             changes,
             running: Mutex::new(None),
             local: Mutex::new(HashMap::new()),
+            leases: AtomicUsize::new(0),
         }));
         installation.scan().await;
         installation
@@ -432,6 +451,15 @@ impl CodexInstallation {
         }
     }
 
+    /// `resolve` for something that goes on to run the executable: the lease keeps the managed runtime from being removed under it.
+    /// Taken under the gate `remove` holds, so a removal cannot slip in between the resolve and the lease.
+    pub async fn acquire(&self) -> Result<(Executable, Lease), InstallError> {
+        let _gate = self.0.gate.lock().await;
+        let executable = self.resolve().await?;
+        self.0.leases.fetch_add(1, Ordering::SeqCst);
+        Ok((executable, Lease(Arc::new(LeaseGuard(self.0.clone())))))
+    }
+
     // ---- install ----
 
     async fn validate(&self, executable: &Executable, version: &str) -> R<()> {
@@ -613,7 +641,7 @@ impl CodexInstallation {
     pub async fn remove(&self, protected: &[String]) -> Result<(), InstallError> {
         let _gate = self.0.gate.lock().await;
         let default = "Could not remove the managed Codex runtime. Check for open processes and try again.";
-        if is_running(&self.state()) {
+        if is_running(&self.state()) || self.0.leases.load(Ordering::SeqCst) > 0 {
             return Err(InstallError::new("remove", "Stop Codex sessions and sign-in flows before removing its managed runtime."));
         }
         if let Ok(managed) = std::fs::canonicalize(&self.0.managed) {

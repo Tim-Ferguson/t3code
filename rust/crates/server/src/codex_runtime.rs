@@ -540,7 +540,7 @@ async fn codex_actor(
     let mut pending_process = None;
     // A managed instance's session is admitted by its ChatGPT sign-in for as long as it lives (`withAccess`), so a change of
     // credentials ends it. Held here, outside the cancellable connect.
-    let mut access: Option<crate::provider_auth_flow::SessionAccess> = None;
+    let mut access = Admission::default();
     let mut user_cancelled = false;
     // When streamed text is next persisted; set while a notification left something buffered.
     let mut flush_due: Option<tokio::time::Instant> = None;
@@ -765,13 +765,20 @@ fn timestamp(seconds: &Value) -> Value {
         .map(|now| json!(at(now)))
         .unwrap_or_else(|| json!(at(Utc::now())))
 }
+/// What admits a managed session for as long as the actor lives: the ChatGPT sign-in's admission, and the lease that keeps the managed
+/// runtime from being removed under it.
+#[derive(Default)]
+struct Admission {
+    access: Option<crate::provider_auth_flow::SessionAccess>,
+    lease: Option<crate::provider_install::Lease>,
+}
 impl Actor {
     async fn connect(
         store: Store,
         providers: &ProviderRegistry,
         thread_id: &str,
         pending_process: &mut Option<crate::provider_process::ProviderProcess>,
-        access: &mut Option<crate::provider_auth_flow::SessionAccess>,
+        access: &mut Admission,
         lifetime: &ActorLifetime,
         mcp: Option<&crate::provider_mcp::CredentialLease>,
     ) -> Result<Self, String> {
@@ -799,10 +806,10 @@ impl Actor {
         }
         let managed = instance.is_managed();
         let mut process = if managed {
-            if access.is_none() {
+            if access.access.is_none() {
                 if let Some(auth) = providers.authentication_service() {
                     let lifetime = lifetime.clone();
-                    *access = auth
+                    access.access = auth
                         .admit_session(instance_id, Arc::new(move || {
                             let lifetime = lifetime.clone();
                             Box::pin(async move { lifetime.stop_and_wait().await })
@@ -812,10 +819,12 @@ impl Actor {
                 }
             }
             let host = providers.management().chatgpt().ok_or("ChatGPT sign-in is not available on this server.")?;
-            crate::codex_managed::resolve(&host, providers.management(), &instance)
+            let effective = crate::codex_managed::resolve(&host, providers.management(), &instance)
                 .await
-                .map_err(|error| error.detail)?
-                .process_options(&cwd)
+                .map_err(|error| error.detail)?;
+            // The managed runtime is not removed while this session lives.
+            access.lease = effective.lease.clone();
+            effective.process_options(&cwd)
         } else {
             instance
                 .process_options(&cwd)

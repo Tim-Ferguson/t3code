@@ -163,6 +163,44 @@ async fn a_managed_install_downloads_verifies_reports_progress_republishes_provi
     fixture.harness.finish().await;
 }
 
+/// What runs on the managed runtime holds a lease on it (`CodexInstallation.acquire`): the runtime is not removed while one is held, and
+/// is removed once the last is released.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_runtime_in_use_is_not_removed_until_its_leases_are_released() {
+    let archive_bytes = archive(&package(VERSION, TARGET, VERSION));
+    let fixture = fixture(Some(archive_bytes), |_| {}).await;
+    let harness = &fixture.harness;
+    let mut manager = harness.connect(&harness.manager).await;
+    let mut events = harness.connect(&harness.manager).await;
+    subscribe(&mut events, 1, "codex").await;
+    rpc(&mut manager, 2, "provider.install.start", json!({"instanceId":"codex"})).await;
+    states_until(&mut events, 1, |state| state["phase"] == "succeeded").await;
+
+    let installation = harness.registry.management().codex_installation().await.unwrap();
+    let (executable, first) = installation.acquire().await.unwrap();
+    assert_eq!(executable.path, fixture.managed.join("0.156.1/bin/codex"));
+    let second = first.clone();
+    let (_, third) = installation.acquire().await.unwrap();
+    let refusal = "Stop Codex sessions and sign-in flows before removing its managed runtime.";
+    let refused = rpc(&mut manager, 3, "provider.install.remove", json!({"instanceId":"codex"})).await;
+    assert_eq!(failure(&refused)["detail"], refusal);
+    assert!(fixture.managed.exists(), "nothing was removed");
+    // A lease is held until every holder of it lets go.
+    drop(first);
+    let still = rpc(&mut manager, 4, "provider.install.remove", json!({"instanceId":"codex"})).await;
+    assert_eq!(failure(&still)["detail"], refusal);
+    drop(second);
+    let still = rpc(&mut manager, 5, "provider.install.remove", json!({"instanceId":"codex"})).await;
+    assert_eq!(failure(&still)["detail"], refusal, "the second acquire is a lease of its own");
+    drop(third);
+    let removed = rpc(&mut manager, 6, "provider.install.remove", json!({"instanceId":"codex"})).await;
+    assert_eq!((success(&removed)["phase"].clone(), success(&removed)["installedVersion"].clone()), (json!("idle"), Value::Null));
+    assert!(!fixture.managed.exists());
+
+    drop((manager, events));
+    fixture.harness.finish().await;
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_supported_codex_on_path_is_preferred_and_nothing_is_downloaded() {
     let archive_bytes = archive(&package(VERSION, TARGET, VERSION));

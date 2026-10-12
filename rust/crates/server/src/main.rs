@@ -1270,9 +1270,8 @@ async fn run(
             [url(bootstrap.map(|envelope| &envelope.otlp_traces_url).and_then(Option::as_ref)), url(bootstrap.map(|envelope| &envelope.otlp_metrics_url).and_then(Option::as_ref)), url(bootstrap.map(|envelope| &envelope.otlp_logs_url).and_then(Option::as_ref))],
             persisted,
         );
-        let mut warnings = configuration.warnings.clone();
-        let otlp = t3_server::otlp::Otlp::start(&configuration, &options.mode, &mut warnings);
-        for warning in warnings {
+        let otlp = t3_server::otlp::Otlp::start(&configuration, &options.mode);
+        for warning in &configuration.warnings {
             tracing::warn!("{warning}");
         }
         t3_server::otlp::install(&store, otlp.clone());

@@ -715,7 +715,12 @@ impl ProviderRegistry {
         let state = self.state.read().unwrap();
         let snapshot = state.snapshots.iter().find(|snapshot| snapshot["instanceId"] == instance_id)?;
         if let Some(instance) = state.codex.get(instance_id) {
-            return Some(TextInstance::Codex(instance.clone(), snapshot["models"].as_array().cloned().unwrap_or_default()));
+            let models = snapshot["models"].as_array().cloned().unwrap_or_default();
+            // A managed instance runs on the tokens of its sign-in (`CodexManagedProvider.ts`), not on its own launch configuration.
+            if instance.is_managed() {
+                return Some(TextInstance::ManagedCodex(instance.clone(), models, Arc::new(crate::codex_managed::RegistryRuntime { registry: self.clone(), instance: instance.clone() })));
+            }
+            return Some(TextInstance::Codex(instance.clone(), models));
         }
         if let Some(instance) = state.claude.get(instance_id) {
             return Some(TextInstance::Claude(instance.clone()));
@@ -743,6 +748,8 @@ impl ProviderRegistry {
 pub enum TextInstance {
     /// With the models its last snapshot listed.
     Codex(CodexInstance, Vec<Value>),
+    /// A Codex signed in with ChatGPT, with the models its last snapshot listed and the runtime its sign-in resolves.
+    ManagedCodex(CodexInstance, Vec<Value>, Arc<dyn crate::text_generation_run::ManagedRuntime>),
     Claude(ClaudeInstance),
     Pi(crate::pi_instance::PiInstance),
     /// With the clock its server's idle window runs on.

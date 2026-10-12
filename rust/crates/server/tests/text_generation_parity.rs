@@ -18,12 +18,14 @@ use std::{
 use t3_server::{
     claude_instance::ClaudeInstance,
     codex::CodexInstance,
+    codex_managed::Effective,
+    provider_auth_flow::StopSession,
     git_workflow_stacked::{CommitContext, PrContext},
     persistence::Store,
     provider_registry::TextInstance,
     text_generation::*,
     text_generation_context::{ContextMessage, format_thread_title_context},
-    text_generation_run::{CliRunner, Options},
+    text_generation_run::{CliRunner, ManagedRuntime, Options},
     text_generation_select as select,
     text_generation_service::{TextGenerationService, find_pr_template},
 };
@@ -334,7 +336,16 @@ fn normalized(capture: &Value, cwd: &Path) -> Value {
     json!({"argv":argv,"cwd":marker,"env":capture["env"],"stdin":capture["stdin"],"schema":capture["schema"]})
 }
 
-fn instance(provider: &str, config: &Value, plan_dir: &Path) -> TextInstance {
+/// What a managed instance's sign-in resolves to (`resolveRuntime`), fixed by the row: the token and the home it recorded.
+struct SignedIn(Effective);
+impl ManagedRuntime for SignedIn {
+    fn resolve(&self, _stop: StopSession) -> BoxFuture<'_, Result<(Effective, Box<dyn std::any::Any + Send>), t3_contracts::ProviderSetupError>> {
+        let effective = self.0.clone();
+        Box::pin(async move { Ok((effective, Box::new(()) as Box<dyn std::any::Any + Send>)) })
+    }
+}
+
+fn instance(provider: &str, config: &Value, runtime: &Value, plan_dir: &Path) -> TextInstance {
     let binary = config["binaryPath"].as_str().map(str::to_string).unwrap_or_else(|| fake().to_string_lossy().into_owned());
     let environment: HashMap<String, String> = [("T3_TEXTGEN_DIR".to_string(), plan_dir.to_string_lossy().into_owned())].into();
     if provider == "claude" {
@@ -342,14 +353,23 @@ fn instance(provider: &str, config: &Value, plan_dir: &Path) -> TextInstance {
         TextInstance::Claude(ClaudeInstance { instance_id: "claudeAgent".into(), display_name: "Claude".into(), accent_color: None, enabled: true, config: serde_json::from_value(settings).unwrap(), environment })
     } else {
         let settings = json!({"enabled":true,"binaryPath":binary,"homePath":config["homePath"].as_str().unwrap_or(""),"shadowHomePath":"","launchArgs":config["launchArgs"].as_str().unwrap_or(""),"customModels":[]});
-        TextInstance::Codex(CodexInstance { instance_id: "codex".into(), display_name: "Codex".into(), accent_color: None, enabled: true, config: serde_json::from_value(settings).unwrap(), environment }, vec![])
+        let instance = CodexInstance { instance_id: "codex".into(), display_name: "Codex".into(), accent_color: None, enabled: true, config: serde_json::from_value(settings).unwrap(), environment: environment.clone() };
+        if runtime.is_null() {
+            return TextInstance::Codex(instance, vec![]);
+        }
+        let (home, token) = (runtime["home"].as_str().unwrap(), runtime["accessToken"].as_str().unwrap());
+        let mut environment = environment;
+        environment.insert("ACCESS_TOKEN".into(), token.into());
+        environment.insert("CODEX_HOME".into(), home.into());
+        let effective = Effective { binary: fake(), environment, launch_args: runtime["launchArgs"].as_str().unwrap().into(), home: home.into(), access_token: token.into(), lease: None };
+        TextInstance::ManagedCodex(instance, vec![], Arc::new(SignedIn(effective)))
     }
 }
 
 #[tokio::test]
 async fn the_clis_are_started_as_the_original_starts_them() {
     let rows = rows(include_str!("fixtures/text-generation-invocations.jsonl"));
-    assert_eq!(rows.len(), 83);
+    assert_eq!(rows.len(), 99);
     let cwd_root = tempfile::tempdir().unwrap();
     let cwd = std::fs::canonicalize(cwd_root.path()).unwrap();
     for (index, row) in rows.iter().enumerate() {
@@ -364,7 +384,7 @@ async fn the_clis_are_started_as_the_original_starts_them() {
         script["exit"] = row["exit"].clone();
         std::fs::write(plan.path().join("plan.json"), script.to_string()).unwrap();
         let provider = row["provider"].as_str().unwrap().to_string();
-        let found = instance(&provider, &row["config"], plan.path());
+        let found = instance(&provider, &row["config"], &row["runtime"], plan.path());
         let found = Arc::new(Mutex::new(Some(found)));
         let runner = CliRunner::new(Arc::new(move |_| found.lock().unwrap().take()), Options::default(), None);
         let input = &row["input"];

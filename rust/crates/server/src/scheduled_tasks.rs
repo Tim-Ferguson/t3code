@@ -1151,6 +1151,29 @@ impl ScheduledTasks {
     /// Verifies, logs and dispatches one webhook request. Returns as soon as the delivery is logged; the
     /// run itself continues in the background so senders with short timeouts get their answer at once.
     pub async fn trigger_webhook(&self, request: WebhookTriggerRequest) -> Result<WebhookTriggerResult, ScheduledTaskError> {
+        let started = std::time::Instant::now();
+        let source = if request.relay_delivery_id.is_some() { "relay" } else { "direct" };
+        let received = request.received_at.as_deref().and_then(parse_iso);
+        let result = self.trigger_webhook_unobserved(request).await;
+        let outcome = match &result {
+            Ok(WebhookTriggerResult::Accepted { outcome, .. } | WebhookTriggerResult::RateLimited { outcome }) => outcome,
+            Ok(WebhookTriggerResult::NotFound) => "not_found",
+            Ok(WebhookTriggerResult::RejectedSignature) => "rejected_signature",
+            Ok(WebhookTriggerResult::Disabled) => "disabled",
+            Ok(WebhookTriggerResult::Expired) => "expired",
+            Err(_) => "error",
+        };
+        crate::otlp::count("t3_webhook_deliveries_total", "Webhook requests handled, by outcome and source.", &[("outcome", outcome), ("source", source)], 1.0);
+        // How long a relay-held request waited before this environment got it (a receive time is never later than now).
+        if let (Some(received), true) = (received, !matches!(result, Ok(WebhookTriggerResult::NotFound) | Err(_))) {
+            let now = self.inner.clock.now_ms();
+            crate::otlp::time("t3_webhook_held_delay", "Time between the relay receiving a webhook request and the environment handling it.", &[], (now - received.min(now)) as f64);
+        }
+        crate::otlp::time("t3_webhook_delivery_duration", "Time to verify, log, and enqueue one webhook request.", &[], started.elapsed().as_secs_f64() * 1000.0);
+        result
+    }
+
+    async fn trigger_webhook_unobserved(&self, request: WebhookTriggerRequest) -> Result<WebhookTriggerResult, ScheduledTaskError> {
         let Ok(task_id) = ScheduledTaskId::new(&request.hook_id) else { return Ok(WebhookTriggerResult::NotFound) };
         let id = task_id.to_string();
         let owned = id.clone();
@@ -1304,6 +1327,12 @@ impl ScheduledTasks {
             // Deliveries for one task dispatch in arrival order rather than being dropped while an earlier one is still dispatching.
             let _permit = permit.acquire_owned().await;
             let outcome = service.run_task(&run_task, Trigger::Webhook { delivery_id: run_delivery.clone(), prompt }).await;
+            let run_outcome = match &outcome {
+                Ok(RunOutcome::Done(done)) if done.last_run_status != t3_contracts::ScheduledTaskRunStatus::Failed => "started",
+                Ok(RunOutcome::Skipped(_)) => "skipped",
+                _ => "failed",
+            };
+            crate::otlp::count("t3_webhook_runs_total", "Runs started from webhook deliveries, by outcome.", &[("outcome", run_outcome)], 1.0);
             let failure = match outcome {
                 Ok(RunOutcome::Done(done)) if done.last_run_status == t3_contracts::ScheduledTaskRunStatus::Failed => Some("The run failed to start.".to_owned()),
                 Ok(RunOutcome::Done(_)) => None,

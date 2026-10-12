@@ -2,7 +2,7 @@
 """Test-only stand-in for the one-shot runs of `codex exec` and `claude -p`.
 
 It records exactly how it was started (arguments, working directory, the two config-home variables
-and stdin, plus the schema file `codex exec` is given) and answers as scripted. It never runs a tool,
+and stdin (and the access token of a managed Codex, when it has one), plus the schema file `codex exec` is given) and answers as scripted. It never runs a tool,
 reads agent state or talks to the network.
 
   T3_TEXTGEN_DIR   directory for the calls; call N writes NNN.capture.json and reads NNN.plan.json,
@@ -47,7 +47,7 @@ output_path = read_flag("--output-last-message")
 capture = {
     "argv": argv,
     "cwd": os.path.realpath(os.getcwd()),
-    "env": {"CLAUDE_CONFIG_DIR": os.environ.get("CLAUDE_CONFIG_DIR"), "CODEX_HOME": os.environ.get("CODEX_HOME")},
+    "env": {"CLAUDE_CONFIG_DIR": os.environ.get("CLAUDE_CONFIG_DIR"), "CODEX_HOME": os.environ.get("CODEX_HOME"), **({"ACCESS_TOKEN": os.environ["ACCESS_TOKEN"]} if "ACCESS_TOKEN" in os.environ else {})},
     "stdin": stdin,
     "schema": open(schema_path).read() if schema_path else None,
 }

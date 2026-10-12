@@ -301,6 +301,7 @@ pub mod background_policy;
 pub mod device_host;
 pub mod otlp;
 pub mod otlp_config;
+pub mod otlp_protobuf;
 pub mod device_host_resolver;
 #[cfg(test)]
 mod device_host_rpc_tests;

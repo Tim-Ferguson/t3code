@@ -629,6 +629,31 @@ impl Store {
         lease: chrono::Duration,
         exclude_restart_continuations: bool,
     ) -> Result<Option<Effect>, StoreError> {
+        let claimed = self.claim_effect_unobserved(owner, now, lease, exclude_restart_continuations);
+        let result = match &claimed {
+            Err(_) => "error",
+            Ok(None) => "empty",
+            Ok(Some(_)) => "claimed",
+        };
+        crate::otlp::count("t3_orchestration_effect_claims_total", "Total completed orchestration effect outbox claim attempts by result.", &[("result", result)], 1.0);
+        if let Ok(Some(effect)) = &claimed {
+            // From the effect's temporal availability until the claim, including same-thread blocking.
+            let eligible = [&effect.created_at, &effect.available_at].into_iter().filter_map(|at| DateTime::parse_from_rfc3339(at).ok()).max();
+            if let (Some(eligible), Some(kind)) = (eligible, effect.request["type"].as_str()) {
+                let waited = (now - eligible.with_timezone(&Utc)).num_milliseconds().max(0);
+                crate::otlp::time("t3_orchestration_effect_queue_wait", "Time from an orchestration effect's temporal availability until claim, including same-thread blocking.", &[("effect_type", kind)], waited as f64);
+            }
+        }
+        claimed
+    }
+
+    fn claim_effect_unobserved(
+        &self,
+        owner: &str,
+        now: DateTime<Utc>,
+        lease: chrono::Duration,
+        exclude_restart_continuations: bool,
+    ) -> Result<Option<Effect>, StoreError> {
         let mut connection = self.connection.lock().map_err(|_| StoreError::Poisoned)?;
         let transaction =
             connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;

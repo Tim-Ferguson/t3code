@@ -62,6 +62,13 @@ fn done<T: Serialize>(result: PrResult<T>) -> Result<Value, Value> {
     result.map(|value| encode(&value)).map_err(|error| error.wire())
 }
 
+/// `pullRequestSync.requestSync` of the pull request a socket method acted on: the linked threads' snapshots are read again.
+async fn request_sync(state: &ApiState, env: &Env, reference: &PullRequestRef) {
+    if let (Some(sync), Some(key)) = (crate::pull_request_sync::PullRequestSync::current(&state.store), PullRequestService::shared().sync_key(env, reference).await) {
+        sync.request_sync(&key);
+    }
+}
+
 fn done_void(result: PrResult<()>) -> Result<Value, Value> {
     result.map(|()| Value::Null).map_err(|error| error.wire())
 }
@@ -294,6 +301,9 @@ pub async fn command(state: &ApiState, tag: &str, payload: Value) -> Result<Valu
                 return Err(decode_failure("Expected a positive integer for stackNumber."));
             }
             let result = Box::pin(service.routed(&env, &input.reference, |namespace| Box::pin(service.run_action(&env, &input, namespace)))).await;
+            if result.is_ok() {
+                request_sync(state, &env, &input.reference).await;
+            }
             done_void(result)
         }
         "pullRequests.reviewerCandidates" => {
@@ -332,6 +342,11 @@ pub async fn command(state: &ApiState, tag: &str, payload: Value) -> Result<Valu
                 check_reference(reference)?;
             }
             Box::pin(service.invalidate(&env, &input, true)).await;
+            // A reader asking for fresh host state also wants the thread badges it feeds to catch up, including a merged link the sweep
+            // would otherwise never revisit.
+            if let (Some(reference), false) = (&input.reference, input.files_viewed_only == Some(true)) {
+                request_sync(state, &env, reference).await;
+            }
             Ok(Value::Null)
         }
         _ => Err(json!({"_tag":"NativeMethodUnsupportedError","method":tag})),

@@ -544,6 +544,10 @@ async fn a_managed_codex_session_runs_on_the_signed_in_tokens_until_a_new_connec
     let turn_start = launched(&requests).into_iter().find(|request| request["method"] == "turn/start").expect("a turn started");
     assert!(turn_start["params"].get("serviceTier").is_none(), "ChatGPT token sharing takes no service tier: {turn_start}");
 
+    // The session holds a lease on the runtime it runs on: removing it is refused while the session lives.
+    let held = providers.management().codex_installation().await.unwrap().remove(&[]).await.unwrap_err();
+    assert_eq!((held.operation.as_str(), held.detail.as_str()), ("remove", "Stop Codex sessions and sign-in flows before removing its managed runtime."));
+
     // A connection signed in elsewhere replaces these tokens and ends the session that runs on them.
     let before = launched(&launches).len();
     let state_after = service.import_chatgpt_profile(import()).await.unwrap();
@@ -576,4 +580,71 @@ async fn phase_of(states: &mut t3_server::provider_auth_service::ProviderAuthCha
     })
     .await
     .unwrap_or_else(|_| panic!("waiting for {phase:?}"))
+}
+
+/// Thread titles, commit messages and the like written by a managed Codex run `codex exec` on the signed-in tokens, in the managed home,
+/// with the token-sharing launch configuration and no service tier, and only while someone is signed in.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn a_managed_codex_writes_text_on_the_signed_in_tokens() {
+    use t3_server::{
+        codex_chatgpt_rpc::Environment, codex_managed::ChatGptHost, execution::ExecutionService, persistence::Store,
+        provider_auth_service::ProviderAuthService, provider_manage::Management, provider_registry::ProviderRegistry,
+        text_generation::{Operation, Request, Runner, Shape}, text_generation_run::CliRunner,
+    };
+    use std::os::unix::fs::PermissionsExt;
+
+    let issuer = start_issuer().await;
+    let directory = tempfile::tempdir().unwrap();
+    let base = std::fs::canonicalize(directory.path()).unwrap();
+    let (state, shared, workspace, bin, calls) = (base.join("state"), base.join("shared"), base.join("workspace"), base.join("bin"), base.join("calls"));
+    for path in [&state, &workspace, &bin, &calls] {
+        std::fs::create_dir_all(path).unwrap();
+    }
+    let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    let (sessions, writer) = (fixtures.join("codex-provider.py"), fixtures.join("text-generation-provider.py"));
+    let executable = bin.join("codex");
+    std::fs::write(&executable, format!("#!/bin/sh\ncase \"$1\" in\n  --version) echo 'codex-cli 0.156.1' ;;\n  exec) exec python3 '{}' \"$@\" ;;\n  app-server) if [ \"$2\" = \"--help\" ]; then exit 0; fi; exec python3 '{}' \"$@\" ;;\nesac\n", writer.display(), sessions.display())).unwrap();
+    std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
+    std::fs::write(calls.join("plan.json"), json!({"answer":{"title":"Login bug","needsRefinement":false}}).to_string()).unwrap();
+
+    let settings: t3_contracts::ServerSettings = serde_json::from_value(json!({"providerInstances":{
+        "claudeAgent":{"driver":"claudeAgent","enabled":false},"codex":{"driver":"codex","enabled":false},
+        "work":{"driver":"codex","enabled":true,"config":{"setupMode":"managed","homePath":shared},"environment":[{"name":"T3_TEXTGEN_DIR","value":calls}]}}})).unwrap();
+    let management = Management::new(Some(base.join("tools")));
+    management.configure(|options| options.codex_path = Some(bin.to_string_lossy().into_owned()));
+    let environment = Environment { environment_id: "environment-1".into(), default_return_url: None, discovery_url: Some(format!("{}/.well-known/openid-configuration", issuer.origin)), resource: None, models_url: Some(format!("{}/v1/models", issuer.origin)), http: reqwest::Client::new() };
+    management.set_chatgpt(ChatGptHost { environment: Arc::new(environment), state_dir: state.clone() });
+    let providers = ProviderRegistry::discover_with_management(&settings, &base, None, management).await.unwrap();
+    let store = Store::open(state.join("rust-state.sqlite")).unwrap();
+    let execution = ExecutionService::start(store, providers.clone());
+    let service = ProviderAuthService::for_server(&execution, &providers, base.clone(), &state);
+    let runner = CliRunner::for_registry(providers.clone(), None);
+    let request = || Request { operation: Operation::ThreadTitle, cwd: workspace.to_string_lossy().into_owned(), prompt: "Fix the login bug".into(), shape: Shape::ThreadTitle, model_selection: json!({"instanceId":"work","model":"fixture-model","options":[{"id":"serviceTier","value":"fast"}]}), attachments: vec![] };
+
+    // Nobody is signed in: the run is refused with the sign-in's own words, and the CLI is not started.
+    let refused = runner.run(request()).await.unwrap_err();
+    assert_eq!(refused.detail, "Sign in with ChatGPT to use managed Codex.");
+    assert!(!calls.join("001.capture.json").exists());
+
+    let mut states = service.subscribe("work", "owner".into()).await.unwrap();
+    let start = serde_json::from_value::<t3_contracts::ProviderAuthStartInput>(json!({"instanceId":"work","methodId":"chatgpt","returnUrl":"http://localhost:5173/settings","callbackMode":"server"})).unwrap();
+    service.start(start, "owner".into()).await.unwrap();
+    let waiting = phase_of(&mut states, ProviderAuthPhase::Waiting).await;
+    let Some(Some(Some(ProviderAuthInteraction::Browser { url, .. }))) = waiting.interaction.clone() else { panic!("{waiting:?}") };
+    browser(url.0.as_str()).await;
+    phase_of(&mut states, ProviderAuthPhase::Succeeded).await;
+
+    let answer = runner.run(request()).await.unwrap();
+    assert_eq!(answer["title"], "Login bug");
+    let capture: Value = serde_json::from_str(&std::fs::read_to_string(calls.join("001.capture.json")).unwrap()).unwrap();
+    let shadow = state.join("providers/codex/work/shadow");
+    assert_eq!((capture["env"]["ACCESS_TOKEN"].as_str(), capture["env"]["CODEX_HOME"].as_str()), (Some("access-1"), shadow.to_str()), "{capture}");
+    let argv: Vec<&str> = capture["argv"].as_array().unwrap().iter().map(|arg| arg.as_str().unwrap()).collect();
+    assert_eq!(argv[..3], ["exec", "-c", "model_provider=\"openai_token_sharing\""], "{argv:?}");
+    assert!(argv.windows(2).any(|pair| pair[0] == "-c" && pair[1] == "model_providers.openai_token_sharing.env_key=\"ACCESS_TOKEN\""), "{argv:?}");
+    assert!(!argv.iter().any(|arg| arg.contains("service_tier")), "ChatGPT token sharing takes no service tier: {argv:?}");
+
+    service.shutdown().await;
+    execution.shutdown().await;
 }

@@ -448,6 +448,7 @@ impl McpControlTools {
                 }
             }
         };
+        crate::otlp::count("t3_secret_requests_total", "Secrets agents asked users for, by how each request ended.", &[("status", &status)], 1.0);
         if status != "saved" {
             return Ok(json!({"status":status}));
         }

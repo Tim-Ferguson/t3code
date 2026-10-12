@@ -59,6 +59,9 @@ pub struct Effective {
     pub launch_args: String,
     pub home: PathBuf,
     pub access_token: String,
+    /// Keeps the managed runtime from being removed while whatever runs on it lives (`installation.acquire()` in the original's scope).
+    /// Whoever holds the runtime holds this; a caller that moves the fields out takes the lease with it.
+    pub lease: Option<crate::provider_install::Lease>,
 }
 
 impl Effective {
@@ -75,7 +78,7 @@ pub async fn resolve(host: &ChatGptHost, management: &Management, instance: &Cod
     let id = instance.instance_id.as_str();
     let installation_error = || setup_error(id, "install", "Set up managed Codex before starting a session.");
     let installation = management.codex_installation().await.map_err(|_| installation_error())?;
-    let executable = installation.resolve().await.map_err(|_| installation_error())?;
+    let (executable, lease) = installation.acquire().await.map_err(|_| installation_error())?;
     let credentials = host.auth(id, "access")?.access().await?;
     let layout = crate::codex_home::resolve_managed(&host.state_dir, id, instance.config.home_path.as_str(), instance.config.shadow_home_path.as_str(), &instance.environment);
     crate::codex_home::materialize(&layout).map_err(|detail| setup_error(id, "runtime", &detail))?;
@@ -90,7 +93,31 @@ pub async fn resolve(host: &ChatGptHost, management: &Management, instance: &Cod
     for ambient in ["T3CODE_CODEX_LAUNCH_ARGS", "OPENAI_API_KEY", "OPENAI_BASE_URL"] {
         environment.remove(ambient);
     }
-    Ok(Effective { binary: executable.path, environment, launch_args: launch_args(), home, access_token: credentials.access_token })
+    Ok(Effective { binary: executable.path, environment, launch_args: launch_args(), home, access_token: credentials.access_token, lease: Some(lease) })
+}
+
+/// `resolveRuntime` of the managed instance's text generation: `withAccess(runtime.resolve)`. The sign-in admits the request (and stops
+/// it when the connection is replaced or signed out), then `resolve` gives the tokens and the home to run on.
+pub struct RegistryRuntime {
+    pub registry: crate::provider_registry::ProviderRegistry,
+    pub instance: CodexInstance,
+}
+
+impl crate::text_generation_run::ManagedRuntime for RegistryRuntime {
+    fn resolve(&self, stop: crate::provider_auth_flow::StopSession) -> futures_util::future::BoxFuture<'_, Result<(Effective, Box<dyn std::any::Any + Send>), ProviderSetupError>> {
+        Box::pin(async move {
+            let id = self.instance.instance_id.as_str();
+            let access = match self.registry.authentication_service() {
+                Some(auth) => auth.admit_session(id, stop).await?,
+                None => None,
+            };
+            let host = self.registry.management().chatgpt().ok_or_else(|| setup_error(id, "runtime", "ChatGPT sign-in is not available on this server."))?;
+            let mut effective = resolve(&host, self.registry.management(), &self.instance).await?;
+            // The runtime stays in place as long as the request holds the sign-in's admission.
+            let lease = effective.lease.take();
+            Ok((effective, Box::new((access, lease)) as Box<dyn std::any::Any + Send>))
+        })
+    }
 }
 
 // ---- the provider list --------------------------------------------------------------------------------------------------------------

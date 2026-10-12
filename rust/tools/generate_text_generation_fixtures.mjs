@@ -1018,7 +1018,7 @@ process.stdin.on("end", () => {
   const read = (flag) => { const at = argv.indexOf(flag); return at < 0 ? null : argv[at + 1]; };
   const schemaPath = read("--output-schema");
   const outputPath = read("--output-last-message");
-  const capture = { argv, cwd: fs.realpathSync(process.cwd()), env: { CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR ?? null, CODEX_HOME: process.env.CODEX_HOME ?? null }, stdin: Buffer.concat(chunks).toString("utf8"), schema: schemaPath ? fs.readFileSync(schemaPath, "utf8") : null };
+  const capture = { argv, cwd: fs.realpathSync(process.cwd()), env: { CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR ?? null, CODEX_HOME: process.env.CODEX_HOME ?? null, ...(process.env.ACCESS_TOKEN === undefined ? {} : { ACCESS_TOKEN: process.env.ACCESS_TOKEN }) }, stdin: Buffer.concat(chunks).toString("utf8"), schema: schemaPath ? fs.readFileSync(schemaPath, "utf8") : null };
   fs.writeFileSync(process.env.T3_CAPTURE, JSON.stringify(capture));
   if (process.env.T3_STDERR) process.stderr.write(process.env.T3_STDERR);
   if (outputPath && process.env.T3_OUTPUT_FILE !== undefined) fs.writeFileSync(outputPath, process.env.T3_OUTPUT_FILE);
@@ -1161,7 +1161,42 @@ const answerFor = {
   generateBranchName: answers.branch,
   generateThreadTitle: answers.title,
 };
-const makeOriginal = (provider, config, environment) =>
+// `managedCodexLaunchArgs` of CodexManagedRuntime.ts, which is not exported: the array literal is read out of the source.
+const managedLaunchArgs = (() => {
+  const source = readFileSync(
+    new URL("../../apps/server/src/provider/CodexManagedRuntime.ts", import.meta.url),
+    "utf8",
+  );
+  const literal = source.match(/const managedCodexLaunchArgs = \[([\s\S]*?)\]\s*\.map/)[1];
+  return new Function(`return [${literal}]`)()
+    .map((value) => `-c '${value}'`)
+    .join(" ");
+})();
+// What `makeCodexManagedRuntime(...).resolve` gives a signed-in instance: the installed executable, the token in `ACCESS_TOKEN`, the
+// managed home as `CODEX_HOME`, and the token-sharing launch configuration (the ambient launch arguments and OpenAI variables removed).
+const managedRuntime = (home) => ({
+  home,
+  launchArgs: managedLaunchArgs,
+  accessToken: "managed-access-token",
+});
+const effectiveManaged = (runtime, environment) => {
+  const effective = { ...environment, ACCESS_TOKEN: runtime.accessToken, CODEX_HOME: runtime.home };
+  delete effective.T3CODE_CODEX_LAUNCH_ARGS;
+  delete effective.OPENAI_API_KEY;
+  delete effective.OPENAI_BASE_URL;
+  return {
+    config: {
+      enabled: true,
+      setupMode: "managed",
+      binaryPath: recorderPath,
+      homePath: runtime.home,
+      launchArgs: runtime.launchArgs,
+    },
+    environment: effective,
+    revision: runtime.accessToken,
+  };
+};
+const makeOriginal = (provider, config, environment, runtime) =>
   Effect.gen(function* () {
     return provider === "claude"
       ? yield* makeClaudeTextGeneration(
@@ -1187,6 +1222,10 @@ const makeOriginal = (provider, config, environment) =>
             ...config,
           },
           environment,
+          undefined,
+          runtime === undefined
+            ? undefined
+            : Effect.succeed(effectiveManaged(runtime, environment)),
         );
   }).pipe(
     Effect.provide(NodeServices.layer),
@@ -1226,6 +1265,7 @@ const record = async ({
   op,
   selection,
   config = {},
+  runtime,
   stdout = "",
   outputFile,
   exit = 0,
@@ -1249,7 +1289,7 @@ const record = async ({
   const input = generationInputs(selection)[op];
   const outcome = await exitOf(
     Effect.gen(function* () {
-      const service = yield* makeOriginal(provider, config, environment);
+      const service = yield* makeOriginal(provider, config, environment, runtime);
       return yield* service[op](input);
     }).pipe(Effect.scoped),
   );
@@ -1260,6 +1300,7 @@ const record = async ({
     op,
     selection,
     config,
+    ...(runtime === undefined ? {} : { runtime }),
     stdout,
     outputFile: outputFile ?? null,
     exit,
@@ -1567,6 +1608,49 @@ await record({
   selection: codexSelections[0],
   outputFile: undefined,
   label: "no output file written",
+});
+// A managed instance (signed in with ChatGPT) runs on the runtime its sign-in resolves: its executable and launch configuration, the
+// token in `ACCESS_TOKEN`, the managed home as `CODEX_HOME`, and no service tier (token sharing takes none).
+const managed = managedRuntime("/tmp/t3-managed-home");
+for (const selection of codexSelections)
+  for (const op of ["generateThreadTitle", "generateCommitMessage"])
+    await record({
+      provider: "codex",
+      op,
+      selection,
+      runtime: managed,
+      outputFile: JSON.stringify(answerFor[op]),
+      label: "managed selection",
+    });
+for (const op of ["generatePrContent", "generateBranchName"])
+  await record({
+    provider: "codex",
+    op,
+    selection: codexSelections[0],
+    runtime: managed,
+    outputFile: JSON.stringify(answerFor[op]),
+    label: "managed operation",
+  });
+// The configured launch arguments and home are not the managed instance's own.
+await record({
+  provider: "codex",
+  op: "generateCommitMessage",
+  selection: codexSelections[0],
+  config: { launchArgs: "--config ignored=1", homePath: "/tmp/configured-home" },
+  runtime: managed,
+  outputFile: JSON.stringify(answers.commit),
+  label: "managed ignores the configured launch arguments",
+});
+await record({
+  provider: "codex",
+  op: "generateCommitMessage",
+  selection: codexSelections[0],
+  runtime: managed,
+  stdout: "oops",
+  stderr: "not logged in",
+  exit: 1,
+  outputFile: "",
+  label: "managed failure with stderr",
 });
 rmSync(bin, { recursive: true, force: true });
 rmSync(workDir, { recursive: true, force: true });

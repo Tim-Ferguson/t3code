@@ -1,6 +1,7 @@
 //! OTLP/HTTP export of the server's traces, metrics and logs (`observability/Observability.ts`, `serverLogger.ts`, and the exporters of
-//! effect they install: `OtlpExporter`, `OtlpTracer`, `OtlpMetrics`, `OtlpLogger`), with JSON bodies. `tests/fixtures/otlp-exports.jsonl` holds
-//! what those exporters send, made by `tools/generate_otlp_fixtures.mjs`; the tests below compare this module's bodies to it.
+//! effect they install: `OtlpExporter`, `OtlpTracer`, `OtlpMetrics`, `OtlpLogger`), with JSON bodies or, for a signal whose protocol is
+//! `http/protobuf`, the bytes `otlp_protobuf.rs` makes of the same body. `tests/fixtures/otlp-exports.jsonl` holds what those exporters
+//! send, made by `tools/generate_otlp_fixtures.mjs`; the tests below compare this module's bodies to it.
 //!
 //! Every signal has one batch exporter: records are buffered and posted on the signal's interval (10 s unless configured), a batch of 1000
 //! is posted at once (traces and logs), transient failures (a transport error, 408, 429, 5xx) are retried three times a second apart (a 429's
@@ -8,9 +9,11 @@
 //! is left is posted when the server stops, within three seconds.
 //!
 //! Divergences from the original: the spans are the ones this server runs (`ws.rpc.*`, `rpc_spans.rs`), a log record has no `fiberId` or
-//! `logSpan.*` attribute (there are no fibers) and carries the message as a single string body, and only the RPC metrics are recorded
-//! (`t3_rpc_requests_total` and `t3_rpc_request_duration`). Protobuf bodies (`http/protobuf`) are not encoded.
-use crate::otlp_config::{Endpoint, ObservabilityConfig, Protocol};
+//! `logSpan.*` attribute (there are no fibers) and carries the message as a single string body, and the metrics of `Metrics.ts` are
+//! recorded where this server has the event they count (RPC requests, effect claims, terminal sessions and restarts, webhook deliveries
+//! and runs, secret requests and refs) except the provider session and turn counters and the git command counter and timer, which
+//! nothing here records yet.
+use crate::otlp_config::{Endpoint, ObservabilityConfig, Protocol, Signal};
 use serde_json::{Map, Value, json};
 use std::{
     collections::BTreeMap,
@@ -57,9 +60,19 @@ pub fn resource(mode: &str, environment: &BTreeMap<String, String>) -> Value {
 
 // ---- the batch exporter (`OtlpExporter.make`) ------------------------------------------------------
 
+/// `OtlpSerialization`: the body of one export and its content type, for the protocol the signal's endpoint asks for.
+fn encode_body(protocol: Protocol, signal: Signal, payload: &Value) -> Result<(Vec<u8>, &'static str), String> {
+    match protocol {
+        Protocol::Json => Ok((serde_json::to_vec(payload).map_err(|error| error.to_string())?, "application/json")),
+        Protocol::Protobuf => Ok((crate::otlp_protobuf::encode(signal, payload)?, crate::otlp_protobuf::CONTENT_TYPE)),
+    }
+}
+
 pub struct ExporterOptions {
     /// `OtlpTracer`, `OtlpLogger` or `OtlpMetrics`: part of the `user-agent`.
     pub label: &'static str,
+    /// Which message a protobuf body is made of.
+    pub signal: Signal,
     pub endpoint: Endpoint,
     /// Posts a batch when it reaches this many records; `None` for an exporter that only posts on its interval.
     pub max_batch: Option<usize>,
@@ -163,14 +176,21 @@ impl Exporter {
     }
     async fn post(&self, payload: &Value) -> Result<(), ()> {
         let options = &self.0.options;
-        let body = serde_json::to_vec(payload).map_err(|_| ())?;
+        // A body that cannot be encoded is an exception of the export, which switches the exporter off like a failed post.
+        let (body, content_type) = encode_body(options.endpoint.protocol, options.signal, payload).map_err(|_| ())?;
         for attempt in 0..=RETRIES {
-            let mut request = self.0.client.post(&options.endpoint.url).header("content-type", "application/json");
+            // The body's content type and the exporter's own user agent replace what the configured headers name.
+            let mut headers = reqwest::header::HeaderMap::new();
             for (name, value) in &options.endpoint.headers {
-                request = request.header(name, value);
+                if let (Ok(name), Ok(value)) = (reqwest::header::HeaderName::from_bytes(name.as_bytes()), reqwest::header::HeaderValue::from_str(value)) {
+                    headers.insert(name, value);
+                }
             }
-            // The exporter's own user agent replaces one the configured headers name.
-            request = request.header("user-agent", format!("effect-opentelemetry-{}/0.0.0", options.label)).body(body.clone());
+            headers.insert(reqwest::header::CONTENT_TYPE, reqwest::header::HeaderValue::from_static(content_type));
+            if let Ok(agent) = reqwest::header::HeaderValue::from_str(&format!("effect-opentelemetry-{}/0.0.0", options.label)) {
+                headers.insert(reqwest::header::USER_AGENT, agent);
+            }
+            let request = self.0.client.post(&options.endpoint.url).headers(headers).body(body.clone());
             let delay = match request.send().await {
                 Ok(response) if response.status().is_success() => return Ok(()),
                 Ok(response) => {
@@ -450,26 +470,18 @@ pub struct Otlp {
     pub logs_endpoint: Option<Endpoint>,
 }
 impl Otlp {
-    /// Starts an exporter for each signal the configuration names; a signal whose protocol is `http/protobuf` is not exported (see the
-    /// module note) and the warnings say so. Installs the log and metric sources.
-    pub fn start(config: &ObservabilityConfig, mode: &str, warnings: &mut Vec<String>) -> Self {
+    /// Starts an exporter for each signal the configuration names, with the protocol its endpoint asks for. Installs the log and metric
+    /// sources.
+    pub fn start(config: &ObservabilityConfig, mode: &str) -> Self {
         let resource = resource(mode, &config.resource_attributes);
-        let mut usable = |name: &str, endpoint: &Option<Endpoint>| -> Option<Endpoint> {
-            let endpoint = endpoint.clone()?;
-            if endpoint.protocol == Protocol::Protobuf {
-                warnings.push(format!("The {name} endpoint asks for http/protobuf, which this server does not encode, so {name} are not exported; set T3CODE_OTLP_PROTOCOL=http/json or OTEL_EXPORTER_OTLP_PROTOCOL=http/json"));
-                return None;
-            }
-            Some(endpoint)
-        };
-        let (traces, metrics, logs) = (usable("traces", &config.traces), usable("metrics", &config.metrics), usable("logs", &config.logs));
+        let (traces, metrics, logs) = (config.traces.clone(), config.metrics.clone(), config.logs.clone());
         let shutdown_timeout = Duration::from_secs(3);
-        let traces_exporter = traces.clone().map(|endpoint| Exporter::start(ExporterOptions { label: "OtlpTracer", endpoint, max_batch: Some(1000), export_empty: false, shutdown_timeout, body: Box::new(traces_body(resource.clone())) }));
+        let traces_exporter = traces.clone().map(|endpoint| Exporter::start(ExporterOptions { label: "OtlpTracer", signal: Signal::Traces, endpoint, max_batch: Some(1000), export_empty: false, shutdown_timeout, body: Box::new(traces_body(resource.clone())) }));
         let metrics_exporter = metrics.clone().map(|endpoint| {
             RECORDING.store(true, Ordering::Relaxed);
-            Exporter::start(ExporterOptions { label: "OtlpMetrics", endpoint, max_batch: None, export_empty: true, shutdown_timeout, body: Box::new(metrics_body(resource.clone())) })
+            Exporter::start(ExporterOptions { label: "OtlpMetrics", signal: Signal::Metrics, endpoint, max_batch: None, export_empty: true, shutdown_timeout, body: Box::new(metrics_body(resource.clone())) })
         });
-        let logs_exporter = logs.clone().map(|endpoint| Exporter::start(ExporterOptions { label: "OtlpLogger", endpoint, max_batch: Some(1000), export_empty: false, shutdown_timeout, body: Box::new(logs_body(resource.clone())) }));
+        let logs_exporter = logs.clone().map(|endpoint| Exporter::start(ExporterOptions { label: "OtlpLogger", signal: Signal::Logs, endpoint, max_batch: Some(1000), export_empty: false, shutdown_timeout, body: Box::new(logs_body(resource.clone())) }));
         if let Some(exporter) = &logs_exporter {
             let _ = LOGS.set(exporter.clone());
         }
@@ -482,11 +494,13 @@ impl Otlp {
     }
 }
 
-/// The browser's own export, posted once to the traces endpoint as it came (`serialization.traces(bodyJson)`), with the configured
-/// headers and no retry. An error says what failed, without the URL's query (an intake may take its key there).
+/// The browser's own export, posted once to the traces endpoint as it came (`serialization.traces(bodyJson)`: encoded as the endpoint's
+/// protocol says), with the configured headers and no retry. An error says what failed, without the URL's query (an intake may take its
+/// key there). A browser body the protobuf encoder cannot read answers like a failed post, where the original's handler throws (a 500).
 pub async fn forward(endpoint: &Endpoint, payload: &Value) -> Result<(), String> {
     let client = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none()).build().map_err(|error| error.to_string())?;
-    let mut request = client.post(&endpoint.url).header("content-type", "application/json").body(serde_json::to_vec(payload).map_err(|error| error.to_string())?);
+    let (body, content_type) = encode_body(endpoint.protocol, Signal::Traces, payload)?;
+    let mut request = client.post(&endpoint.url).header("content-type", content_type).body(body);
     for (name, value) in &endpoint.headers {
         request = request.header(name, value);
     }
@@ -617,10 +631,30 @@ pub(crate) mod tests {
         assert_eq!(normalized(body), normalized(original("metrics")[0]["body"].clone()));
     }
 
+    #[test]
+    fn the_other_counters_and_timers_of_the_original_are_recorded_where_their_events_happen() {
+        let _turn = REGISTRY.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        RECORDING.store(true, Ordering::Relaxed);
+        SERIES.lock().unwrap().clear();
+        let directory = tempfile::tempdir().unwrap();
+        let store = crate::persistence::Store::open(directory.path().join("state.sqlite")).unwrap();
+        // An empty outbox is an attempt that claimed nothing.
+        assert!(store.claim_effect("worker", chrono::Utc::now(), chrono::Duration::minutes(1)).unwrap().is_none());
+        let secrets = crate::secret_requests::SecretRequests::for_store(&store).expect("secret storage in a memory store");
+        assert!(secrets.consume("not a ref", "project").is_err());
+        let metrics = snapshot("0");
+        RECORDING.store(false, Ordering::Relaxed);
+        SERIES.lock().unwrap().clear();
+        let point = |name: &str| metrics.iter().find(|metric| metric["name"] == name).unwrap_or_else(|| panic!("{name} is recorded: {metrics:?}"))["sum"]["dataPoints"][0].clone();
+        assert_eq!(point("t3_orchestration_effect_claims_total")["attributes"], json!([{"key":"result","value":{"stringValue":"empty"}}]));
+        assert_eq!(point("t3_secret_refs_consumed_total")["attributes"], json!([{"key":"result","value":{"stringValue":"rejected"}}]));
+    }
+
     // ---- the exporter against a loopback collector ----
 
     /// A collector that answers each request with the next status of `statuses` (200 when they run out) and reports what it received.
-    async fn collector(statuses: Vec<(u16, Option<&'static str>)>) -> (String, tokio::sync::mpsc::UnboundedReceiver<(Value, std::collections::HashMap<String, String>)>) {
+    type Request = (Vec<u8>, std::collections::HashMap<String, String>);
+    async fn collector(statuses: Vec<(u16, Option<&'static str>)>) -> (String, tokio::sync::mpsc::UnboundedReceiver<Request>) {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}/v1/traces", listener.local_addr().unwrap());
         let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
@@ -651,7 +685,7 @@ pub(crate) mod tests {
                         return;
                     }
                     let (status, retry) = statuses.lock().unwrap().next().unwrap_or((200, None));
-                    let _ = sender.send((serde_json::from_slice(&body).unwrap_or(Value::Null), headers));
+                    let _ = sender.send((body, headers));
                     let retry = retry.map_or(String::new(), |value| format!("Retry-After: {value}\r\n"));
                     let _ = socket.write_all(format!("HTTP/1.1 {status} X\r\n{retry}Content-Length: 2\r\nConnection: close\r\n\r\n{{}}").as_bytes()).await;
                 });
@@ -663,10 +697,17 @@ pub(crate) mod tests {
         Endpoint { url, protocol: Protocol::Json, headers: [("authorization".to_owned(), "Bearer secret".to_owned()), ("user-agent".to_owned(), "mine".to_owned())].into_iter().collect(), interval }
     }
     fn exporter(url: String, interval: Duration) -> Exporter {
-        Exporter::start(ExporterOptions { label: "OtlpTracer", endpoint: endpoint(url, interval), max_batch: Some(2), export_empty: false, shutdown_timeout: Duration::from_secs(3), body: Box::new(traces_body(resource("web", &BTreeMap::new()))) })
+        exporter_with(endpoint(url, interval))
     }
-    async fn received(receiver: &mut tokio::sync::mpsc::UnboundedReceiver<(Value, std::collections::HashMap<String, String>)>) -> (Value, std::collections::HashMap<String, String>) {
+    fn exporter_with(endpoint: Endpoint) -> Exporter {
+        Exporter::start(ExporterOptions { label: "OtlpTracer", signal: Signal::Traces, endpoint, max_batch: Some(2), export_empty: false, shutdown_timeout: Duration::from_secs(3), body: Box::new(traces_body(resource("web", &BTreeMap::new()))) })
+    }
+    async fn received_bytes(receiver: &mut tokio::sync::mpsc::UnboundedReceiver<Request>) -> Request {
         tokio::time::timeout(HANG_BOUND, receiver.recv()).await.expect("the collector is posted to").unwrap()
+    }
+    async fn received(receiver: &mut tokio::sync::mpsc::UnboundedReceiver<Request>) -> (Value, std::collections::HashMap<String, String>) {
+        let (bytes, headers) = received_bytes(receiver).await;
+        (serde_json::from_slice(&bytes).unwrap_or(Value::Null), headers)
     }
     fn span(name: &str) -> Value {
         json!({"traceId":"t","spanId":name,"name":name})
@@ -695,6 +736,71 @@ pub(crate) mod tests {
         exporter.push(span("d"));
         exporter.shutdown().await;
         assert_eq!(names(&received(&mut collected).await.0), ["d"]);
+    }
+
+    fn protobuf_endpoint(url: String) -> Endpoint {
+        Endpoint { protocol: Protocol::Protobuf, ..endpoint(url, Duration::from_secs(3600)) }
+    }
+    fn spans_in(body: &Value) -> Vec<Value> {
+        body["resourceSpans"][0]["scopeSpans"][0]["spans"].as_array().unwrap().clone()
+    }
+    fn finished_span() -> Value {
+        span_from_record(&json!({"type":"effect-span","name":"ws.rpc.server.getConfig","traceId":"0123456789abcdef0123456789abcdef","spanId":"0123456789abcdef","sampled":true,"kind":"internal","startTimeUnixNano":"1700000000000000000","endTimeUnixNano":"1700000000000000500","durationMs":0.0,"attributes":{"rpc.method":"server.getConfig"},"events":[],"links":[],"exit":{"_tag":"Success"}}))
+    }
+
+    #[tokio::test]
+    async fn a_protobuf_endpoint_gets_the_bytes_of_the_json_body_with_the_protobuf_content_type() {
+        let (url, mut collected) = collector(vec![]).await;
+        let exporter = exporter_with(protobuf_endpoint(url));
+        exporter.push(finished_span());
+        exporter.export().await;
+        let (bytes, headers) = received_bytes(&mut collected).await;
+        assert_eq!(headers["content-type"], "application/x-protobuf");
+        assert_eq!(headers["authorization"], "Bearer secret");
+        assert_eq!(headers["user-agent"], "effect-opentelemetry-OtlpTracer/0.0.0");
+        let expected = crate::otlp_protobuf::encode(Signal::Traces, &traces_body(resource("web", &BTreeMap::new()))(vec![finished_span()])).unwrap();
+        assert_eq!(bytes, expected);
+        // The span's name is in the message, so the body is not the JSON one.
+        assert!(bytes.windows(23).any(|window| window == b"ws.rpc.server.getConfig"));
+        assert!(serde_json::from_slice::<Value>(&bytes).is_err());
+        exporter.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn a_body_the_protobuf_encoder_cannot_read_switches_the_exporter_off_like_a_failed_post() {
+        let (url, _collected) = collector(vec![]).await;
+        let exporter = exporter_with(protobuf_endpoint(url));
+        // Not an OTLP span (no kind, times or status).
+        exporter.push(span("bad"));
+        exporter.export().await;
+        assert!(exporter.0.disabled_until.lock().unwrap().is_some());
+        assert!(exporter.0.buffer.lock().unwrap().is_empty());
+        exporter.push(finished_span());
+        assert!(exporter.0.buffer.lock().unwrap().is_empty(), "nothing is taken while the exporter is off");
+        exporter.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn every_signal_of_a_protobuf_configuration_is_exported() {
+        let endpoint = |signal: &str| Some(Endpoint { protocol: Protocol::Protobuf, ..endpoint(format!("http://127.0.0.1:9/v1/{signal}"), Duration::from_secs(3600)) });
+        let config = ObservabilityConfig { traces: endpoint("traces"), metrics: None, logs: endpoint("logs"), resource_attributes: BTreeMap::new(), warnings: Vec::new() };
+        let otlp = Otlp::start(&config, "web");
+        assert!(otlp.traces.is_some() && otlp.logs.is_some());
+        assert_eq!(otlp.traces_endpoint.map(|endpoint| endpoint.protocol), Some(Protocol::Protobuf));
+    }
+
+    #[tokio::test]
+    async fn the_browser_export_is_forwarded_in_the_endpoints_protocol() {
+        let (url, mut collected) = collector(vec![]).await;
+        let body = traces_body(resource("web", &BTreeMap::new()))(vec![finished_span()]);
+        forward(&protobuf_endpoint(url.clone()), &body).await.unwrap();
+        let (bytes, headers) = received_bytes(&mut collected).await;
+        assert_eq!((headers["content-type"].as_str(), bytes), ("application/x-protobuf", crate::otlp_protobuf::encode(Signal::Traces, &body).unwrap()));
+        forward(&endpoint(url, Duration::from_secs(1)), &body).await.unwrap();
+        let (sent, headers) = received(&mut collected).await;
+        assert_eq!((headers["content-type"].as_str(), spans_in(&sent).len()), ("application/json", 1));
+        // A body the encoder cannot read is an error, not a post.
+        assert!(forward(&protobuf_endpoint("http://127.0.0.1:9/v1/traces".into()), &json!({})).await.is_err());
     }
 
     #[tokio::test]

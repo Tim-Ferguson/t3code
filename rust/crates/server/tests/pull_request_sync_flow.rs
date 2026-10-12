@@ -314,6 +314,51 @@ async fn scenario() {
     sync.sweep().await;
     assert_eq!(github.graphql(11), reads);
 
+    // -- a rate-limited host is not asked again until its pause ends, and a pull request asked for waits for the end of it --------------
+    remotes.lock().unwrap().insert(50, Remote { limited: Some(300), ..Remote::default() });
+    idle_thread("t13");
+    settled(&h, "t13").await;
+    link("t13", 50);
+    sync.sweep().await;
+    assert_eq!(snapshot("t13", 50), Value::Null, "the host refused the read");
+    let refused = github.graphql_total();
+    assert!(refused >= 1);
+    after(1);
+    sync.sweep().await;
+    sync.request_sync(&json!({"host":"github.com","repository":"acme/web","number":50}));
+    sync.drain().await;
+    assert_eq!((github.graphql_total(), snapshot("t13", 50)), (refused, Value::Null), "inside the pause nothing is sent, not even for a pull request asked for");
+    remotes.lock().unwrap().get_mut(&50).unwrap().limited = None;
+    after(10);
+    sync.sweep().await;
+    assert_eq!(snapshot("t13", 50)["state"], "open", "the pull request asked for is read in the first pass after the pause");
+
+    // -- a pull request asked for is read again even when its snapshot is merged, and only that one -----------------------------------
+    remotes.lock().unwrap().insert(41, Remote { state: "MERGED", ..Remote::default() });
+    remotes.lock().unwrap().insert(42, Remote { state: "MERGED", ..Remote::default() });
+    idle_thread("t11");
+    settled(&h, "t11").await;
+    link("t11", 41);
+    link("t11", 42);
+    sync.sweep().await;
+    assert_eq!((snapshot("t11", 41)["state"].clone(), snapshot("t11", 42)["state"].clone()), (json!("merged"), json!("merged")));
+    for number in [41, 42] {
+        let mut remotes = remotes.lock().unwrap();
+        let remote = remotes.get_mut(&number).unwrap();
+        remote.state = "OPEN";
+        remote.title = "Reopened";
+    }
+    after(10);
+    sync.sweep().await;
+    assert_eq!(snapshot("t11", 41)["state"], "merged", "a merged pull request is not read again by a pass");
+    let (reads_of_other, sequence) = (github.graphql(42), h.store.latest_sequence().unwrap());
+    sync.request_sync(&json!({"host":"GitHub.com","repository":"Acme/Web","number":41}));
+    sync.drain().await;
+    let reopened = snapshot("t11", 41);
+    assert_eq!((reopened["state"].clone(), reopened["title"].clone()), (json!("open"), json!("Reopened")), "{reopened}");
+    assert_eq!((snapshot("t11", 42)["state"].clone(), github.graphql(42)), (json!("merged"), reads_of_other), "the other pull request was not read");
+    assert!(h.store.latest_sequence().unwrap() > sequence);
+
     // -- the timer main.rs starts sweeps at once, and a host that fails leaves the link as it was -----------------------------
     remotes.lock().unwrap().insert(12, Remote { failing: true, ..Remote::default() });
     idle_thread("t6");
@@ -327,6 +372,12 @@ async fn scenario() {
     link("t7", 13);
     sync.spawn_timer();
     h.until("t7", |view| link_of(view, 13)["snapshot"]["state"].as_str().map(|_| ())).await;
+    // A link made while the server runs is read without waiting for the next pass (a minute away): the event that adds it asks for it.
+    remotes.lock().unwrap().insert(14, Remote::default());
+    idle_thread("t7b");
+    settled(&h, "t7b").await;
+    link("t7b", 14);
+    h.until("t7b", |view| link_of(view, 14)["snapshot"]["state"].as_str().map(|_| ())).await;
 
     // -- the host's stack fills the link, and the layers the thread does not hold are linked as `stack` ------------------------
     remotes.lock().unwrap().insert(20, Remote { stack: Some(vec![(20, "layer-a"), (21, "layer-b")]), ..Remote::default() });

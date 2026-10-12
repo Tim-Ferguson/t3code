@@ -50,13 +50,19 @@ async fn handle(
     if !matches!(method, Method::POST | Method::PUT | Method::PATCH | Method::GET) {
         return StatusCode::NOT_FOUND.into_response();
     }
+    // Refused before a task is looked up, so the service never sees them.
+    let too_large = |error: &str| {
+        let source = if headers.contains_key("x-t3-relay-delivery-id") { "relay" } else { "direct" };
+        crate::otlp::count("t3_webhook_deliveries_total", "Webhook requests handled, by outcome and source.", &[("outcome", "body_too_large"), ("source", source)], 1.0);
+        reply(StatusCode::PAYLOAD_TOO_LARGE, json!({"error": error}), "body_too_large")
+    };
     let declared = headers.get("content-length").and_then(|value| value.to_str().ok()).map_or(Some(0.0), |value| value.parse::<f64>().ok());
     if declared.is_none_or(|length| !length.is_finite() || length > WEBHOOK_MAX_BODY_BYTES as f64) {
-        return reply(StatusCode::PAYLOAD_TOO_LARGE, json!({"error": "body_too_large"}), "body_too_large");
+        return too_large("body_too_large");
     }
     // Chunked requests carry no content-length, so the reader itself is capped.
     let Ok(bytes) = axum::body::to_bytes(body, WEBHOOK_MAX_BODY_BYTES).await else {
-        return reply(StatusCode::PAYLOAD_TOO_LARGE, json!({"error": "body_too_large_or_unreadable"}), "body_too_large");
+        return too_large("body_too_large_or_unreadable");
     };
     let mut request_headers: IndexMap<String, String> = IndexMap::new();
     for (name, value) in &headers {

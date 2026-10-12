@@ -52,12 +52,13 @@ fn detail_ttl(state: Option<PullRequestState>) -> Duration {
 #[derive(Debug, Clone)]
 pub enum PrError {
     Unavailable(PullRequestUnavailableError),
-    Operation { error: PullRequestOperationError, reason: Option<Reason> },
+    /// `retry_at` is when a rate-limited host may be asked again (epoch milliseconds), when it said.
+    Operation { error: PullRequestOperationError, reason: Option<Reason>, retry_at: Option<i64> },
 }
 
 impl PrError {
     pub fn operation(operation: &str, detail: impl Into<String>) -> Self {
-        Self::Operation { error: PullRequestOperationError::new(operation, detail), reason: None }
+        Self::Operation { error: PullRequestOperationError::new(operation, detail), reason: None, retry_at: None }
     }
     pub fn unsupported() -> Self {
         Self::Unavailable(PullRequestUnavailableError { reason: PullRequestUnavailableReason::ProviderUnsupported, provider: None })
@@ -86,6 +87,7 @@ impl PrError {
                     not_found: reason == Reason::NotFound,
                 },
                 reason: Some(reason),
+                retry_at: failure.retry_at,
             },
         }
     }
@@ -328,6 +330,10 @@ pub struct PullRequestService {
     pub(crate) epochs: Mutex<Epochs>,
     refreshes: tokio::sync::watch::Sender<u64>,
     merges: tokio::sync::broadcast::Sender<crate::pull_request_actions::PullRequestMergeEvent>,
+    /// The pull requests a detail read saw first or in a new state, as the `{host, repository, number}` a thread link is keyed by.
+    state_changes: tokio::sync::broadcast::Sender<Value>,
+    /// The state, `updatedAt` and `observedAt` each detail reading last recorded, oldest first (`detailStates`).
+    detail_states: Mutex<indexmap::IndexMap<String, (&'static str, String, Option<i64>)>>,
     details: TtlCache<String, PullRequestDetail, PrError>,
     summaries: TtlCache<String, PullRequestSummary, PrError>,
     previews: TtlCache<String, PullRequestPreview, PrError>,
@@ -354,6 +360,8 @@ impl PullRequestService {
             epochs: Mutex::default(),
             refreshes: tokio::sync::watch::channel(0).0,
             merges: tokio::sync::broadcast::channel(64).0,
+            state_changes: tokio::sync::broadcast::channel(64).0,
+            detail_states: Mutex::default(),
             details: TtlCache::new(DETAIL_CACHE_CAPACITY, clock.clone()),
             summaries: TtlCache::new(DETAIL_CACHE_CAPACITY, clock.clone()),
             previews: TtlCache::new(DETAIL_CACHE_CAPACITY, clock.clone()),
@@ -671,6 +679,31 @@ impl PullRequestService {
         Ok(summary)
     }
 
+    /// `noteDetailReading`: announces a pull request a detail read sees first or in a new state, so a client showing a fresh merge brings
+    /// the thread's link and its settlement along, rather than leaving them to the next sync sweep.
+    fn note_detail_reading(&self, resolved: &Resolved, next: &PullRequestSummary) {
+        let scope = self.scope_of(resolved);
+        let mut states = self.detail_states.lock().unwrap();
+        let current = states.get(&scope).map(|(state, updated, observed)| (*state, updated.as_str(), *observed));
+        if !supersedes(current, (next.state, &next.updated_at, next.observed_at)) {
+            return;
+        }
+        let changed = current.map(|(state, ..)| state) != Some(state_name(next.state));
+        states.shift_remove(&scope);
+        if states.len() >= REF_EPOCH_CAPACITY {
+            states.shift_remove_index(0);
+        }
+        states.insert(scope, (state_name(next.state), next.updated_at.clone(), next.observed_at));
+        if let (true, Some(host)) = (changed, &resolved.input.host) {
+            let _ = self.state_changes.send(json!({"host": host, "repository": resolved.input.repository, "number": resolved.input.number}));
+        }
+    }
+
+    /// The pull requests a detail read saw change state (`subscribeStateChanges`).
+    pub fn subscribe_state_changes(&self) -> tokio::sync::broadcast::Receiver<Value> {
+        self.state_changes.subscribe()
+    }
+
     fn record_summary(&self, key: &str, summary: &PullRequestSummary) {
         let held = self.last_summary.peek(key);
         let current = held.as_ref().map(|(_, held)| (state_name(held.state), held.updated_at.as_str(), held.observed_at));
@@ -736,6 +769,7 @@ impl PullRequestService {
         match read {
             Ok(detail) => {
                 let summary = summary_from_detail(&detail, self.last_summary.peek(&key).map(|(_, held)| held));
+                self.note_detail_reading(&resolved, &summary);
                 self.record_summary(&key, &summary);
                 self.last_detail.record(&key, self.now(), detail.clone());
                 Ok(detail)

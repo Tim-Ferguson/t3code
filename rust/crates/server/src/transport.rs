@@ -1229,6 +1229,9 @@ async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Va
             }
             return Ok(settings);
         }
+        if matches!(request.tag.as_str(), "server.getSettings" | "server.updateSettings") {
+            return Err(settings_unavailable(&state.store));
+        }
         if request.tag != "server.getConfig" {
             return Err(
                 json!({"_tag":"NativeServiceUnavailableError","message":"Settings service is not configured."}),
@@ -1478,6 +1481,13 @@ fn require_scope(
 fn session_ended(method: &str) -> Value {
     let required = t3_contracts::auth_scope_required_response(t3_contracts::rpc_required_scope(method).unwrap_or(AuthEnvironmentScope::OrchestrationRead));
     json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked.","requiredScope":required.required_scope,"requiredPermission":required.required_permission})
+}
+/// What a server started without a settings service answers where the original's settings service fails. The original always has one, so
+/// the failure its settings methods and `subscribeServerConfig` can report is a `ServerSettingsError`, here for the file that cannot be
+/// read (`<state>/settings.json`, or `<memory>` as the original's in-memory settings name themselves when there is no state directory).
+fn settings_unavailable(store: &crate::persistence::Store) -> Value {
+    let path = store.state_dir().map_or_else(|| "<memory>".to_owned(), |directory| directory.join("settings.json").to_string_lossy().into_owned());
+    json!({"_tag":"ServerSettingsError","settingsPath":path,"operation":"read-file"})
 }
 fn authorize_request(session: &Session, request: &RpcRequest) -> Result<(), Value> {
     if request.tag == "device.list" {
@@ -2487,8 +2497,10 @@ async fn config_stream(
             (Some(true),Some(service))=>Some(service.subscribe().await),
             _=>None,
         };
-        let service=state.settings.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Settings service is not configured."}))?;
-        let mut settings=service.subscribe().await.map_err(|error|error.wire())?;
+        // A server without a settings service answers the config it was given, as `server.getConfig` does, and sends no settings events:
+        // the original always has the service, so there is no failure of its to answer instead.
+        let service=state.settings.as_ref();
+        let mut settings=match service {Some(service)=>Some(service.subscribe().await.map_err(|error|error.wire())?),None=>None};
         let (providers,provider_changes)=match &state.providers {
             Some(registry)=>{let (snapshot,changes)=registry.snapshot_and_subscribe();(Some(snapshot),Some(changes))},
             None=>(None,None),
@@ -2499,7 +2511,7 @@ async fn config_stream(
             None=>providers,
         });
         let mut config=state.config.clone().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Native configuration is unavailable."}))?;
-        config["settings"]=crate::provider_registry::redact_settings(&settings.snapshot);
+        if let Some(settings)=&settings {config["settings"]=crate::provider_registry::redact_settings(&settings.snapshot);}
         if let Some(providers)=providers {config["providers"]=json!(providers);}
         let mut keybindings=crate::keybindings_rpc::open_stream(&mut config).await?;
         crate::connect::overlay_config(&state.store,&mut config);
@@ -2531,13 +2543,13 @@ async fn config_stream(
             let typed:t3_contracts::ServerConfigStreamEvent=serde_json::from_value(item).map_err(|_|json!({"_tag":"NativeServiceError","message":"Native config event did not match its contract."}))?;
             item=serde_json::to_value(typed).unwrap();
             state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|session_ended(&request.tag))?;
-            let sent=tokio::select! {biased;_=service.closed()=>return Ok::<(),Value>(()),sent=chunk(&output,&mut ack,&request.id,vec![item])=>sent};
+            let sent=tokio::select! {biased;_=async {match service {Some(service)=>service.closed().await,None=>std::future::pending().await}}=>return Ok::<(),Value>(()),sent=chunk(&output,&mut ack,&request.id,vec![item])=>sent};
             if !sent {return Ok(());}
             item=loop {
                 tokio::select! {
                     biased;
-                    _=service.closed()=>return Ok(()),
-                    next=settings.recv()=>break match next {Some(settings)=>{current["settings"]=crate::provider_registry::redact_settings(&settings);json!({"version":1,"type":"settingsUpdated","payload":{"settings":crate::provider_registry::redact_settings(&settings)}})},None=>return Ok(())},
+                    _=async {match service {Some(service)=>service.closed().await,None=>std::future::pending().await}}=>return Ok(()),
+                    next=async {match settings.as_mut() {Some(settings)=>settings.recv().await,None=>std::future::pending().await}}=>break match next {Some(settings)=>{current["settings"]=crate::provider_registry::redact_settings(&settings);json!({"version":1,"type":"settingsUpdated","payload":{"settings":crate::provider_registry::redact_settings(&settings)}})},None=>return Ok(())},
                     next=keybindings.recv()=>break match next {Some(state)=>{crate::keybindings_rpc::apply(&mut current,&state);crate::keybindings_rpc::updated_event(&state)},None=>return Ok(())},
                     set=async {match usage_sources.as_mut() {Some(sources)=>sources.next().await,None=>std::future::pending().await}}=>match set {
                         Some(set)=>break crate::usage_limit_sources::event(set.as_slice()),
@@ -3064,6 +3076,54 @@ mod tests {
         socket.close(None).await.unwrap();
         stop.send(()).unwrap();
         server.await.unwrap();
+    }
+    /// Without a settings service every reply is still one the original's schema encodes (the outbound check panics otherwise): the config
+    /// stream answers the config it was given, and the settings methods answer a `ServerSettingsError`.
+    #[tokio::test]
+    async fn a_server_without_a_settings_service_answers_the_config_stream_and_fails_the_settings_methods_as_the_original_types_them() {
+        use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, tungstenite::{Message, client::IntoClientRequest}};
+        type Socket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
+        async fn send(socket: &mut Socket, value: Value) {
+            socket.send(Message::Text(value.to_string().into())).await.unwrap();
+        }
+        async fn next(socket: &mut Socket) -> Value {
+            let frame = tokio::time::timeout(HANG_BOUND, socket.next()).await.unwrap().unwrap().unwrap();
+            serde_json::from_str(frame.to_text().unwrap()).unwrap()
+        }
+        let directory = tempfile::tempdir().unwrap();
+        let mut api = state();
+        let config = crate::config::NativeConfig::from_settings(t3_contracts::ServerSettings::default(), directory.path(), directory.path(), &api.environment, &api.auth.descriptor()).await.unwrap();
+        let given = config.snapshot.clone();
+        api.config = Some(config.snapshot);
+        let bearer = token(&api, vec![AuthEnvironmentScope::OrchestrationRead, AuthEnvironmentScope::SettingsWrite]);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, router(api)).await.unwrap() });
+        struct Abort(tokio::task::AbortHandle);
+        impl Drop for Abort {
+            fn drop(&mut self) {
+                self.0.abort();
+            }
+        }
+        let _owned = Abort(server.abort_handle());
+        let mut request = format!("ws://{address}/ws?orchestrationProtocol=2").into_client_request().unwrap();
+        request.headers_mut().insert("Authorization", format!("Bearer {bearer}").parse().unwrap());
+        let mut socket = tokio_tungstenite::connect_async(request).await.unwrap().0;
+        send(&mut socket, json!({"_tag":"Request","id":1,"tag":"subscribeServerConfig","payload":{},"headers":[]})).await;
+        let frame = next(&mut socket).await;
+        assert_eq!(frame["_tag"], "Chunk");
+        let snapshot = &frame["values"][0];
+        serde_json::from_value::<t3_contracts::ServerConfigStreamEvent>(snapshot.clone()).unwrap();
+        assert_eq!((snapshot["type"].as_str(), &snapshot["config"]["settings"]), (Some("snapshot"), &given["settings"]));
+        for (id, tag, payload) in [(2, "server.getSettings", json!({})), (3, "server.updateSettings", json!({"patch":{}}))] {
+            send(&mut socket, json!({"_tag":"Request","id":id,"tag":tag,"payload":payload,"headers":[]})).await;
+            let reply = next(&mut socket).await;
+            assert_eq!(reply["requestId"], id);
+            let error = &reply["exit"]["cause"][0]["error"];
+            assert_eq!((error["_tag"].as_str(), error["operation"].as_str()), (Some("ServerSettingsError"), Some("read-file")), "{tag}");
+            assert!(error["settingsPath"].as_str().is_some_and(|path| path.ends_with("settings.json") || path == "<memory>"));
+        }
+        socket.close(None).await.unwrap();
     }
     #[tokio::test]
     async fn settings_socket_redacts_secrets_rejects_malformed_updates_and_survives_no_provider_stream()
