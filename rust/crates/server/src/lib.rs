@@ -190,6 +190,27 @@ pub mod resource_ports;
 
 pub mod resource_discovery;
 
+pub mod preview_manager;
+
+pub mod preview_browser_install;
+
+pub mod preview_rpc;
+
+pub mod preview_automation_broker;
+
+#[cfg(test)]
+mod preview_automation_broker_tests;
+
+pub mod mcp_preview;
+
+#[cfg(test)]
+mod mcp_preview_tests;
+
+#[cfg(test)]
+mod preview_rpc_tests;
+
+pub mod server_browser_profiles;
+
 pub mod resource_model;
 
 pub mod resource_history;

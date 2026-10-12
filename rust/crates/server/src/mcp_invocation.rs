@@ -170,7 +170,10 @@ pub(crate) mod tests {
         serde_json::from_value(json!({"environmentId":"environment-1","requestNamespace":"provider-session-1","issuedAt":1,"capabilities":["device"],"thread":{"threadId":"thread:1","providerSessionId":"provider-session-1","providerInstanceId":"codex"}})).unwrap()
     }
     pub(crate) fn fixture() -> (Store, InvocationScope) {
-        let store = Store::memory().unwrap();
+        fixture_with(Store::memory().unwrap())
+    }
+    /// The same project and thread in a store the test made, such as one with a state directory.
+    pub(crate) fn fixture_with(store: Store) -> (Store, InvocationScope) {
         let now = "2026-01-01T00:00:00Z".parse().unwrap();
         let project=crate::project::ProjectCommand::from_json(json!({"type":"project.create","commandId":"project-command","projectId":"project:1","title":"Project","workspaceRoot":"/tmp/mcp-project"})).unwrap();
         crate::project::ProjectService::new(store.clone())

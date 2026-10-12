@@ -51,9 +51,29 @@ pub(crate) const IMPLEMENTED: &[&str] = &[
     "t3_worktree_list",
     "t3_worktree_status",
     "t3_worktree_handoff",
-    // A server with no preview host has no preview tabs: the list is empty and closing one is a no-op.
+    // This thread's preview tabs, and closing one.
     "t3_preview_list",
     "t3_preview_close",
+    // The browser tools, run by whichever browser host is registered with the broker (`mcp_preview.rs`).
+    "preview_dialog",
+    "preview_status",
+    "preview_open",
+    "preview_navigate",
+    "preview_resize",
+    "preview_set_appearance",
+    "preview_snapshot",
+    "preview_click",
+    "preview_type",
+    "preview_hover",
+    "preview_select",
+    "preview_drag",
+    "preview_upload",
+    "preview_press",
+    "preview_scroll",
+    "preview_evaluate",
+    "preview_wait_for",
+    "preview_recording_start",
+    "preview_recording_stop",
 ];
 
 /// Whether an unavailable tool only reads (`readsAsCaller`) or acts as the calling thread (`actsAsCaller`).
@@ -63,38 +83,11 @@ pub(crate) enum Gate {
     Acts,
 }
 
-/// What a tool with no service here says. Each row is the tool, its gate in the original, and the
-/// operation a preview host would have been asked for; `None` marks the HTML tools, which fail as the
-/// original's HTML renderer does when it has no browser.
-///
-/// The preview tools (and only they) are withheld from the model by no filter: the original lists
-/// every tool to every caller and gates at call time, so this server does the same and answers
-/// `PreviewAutomationNoAvailableHostError`, the original's "this environment has no browser host" result.
-pub(crate) const UNAVAILABLE: &[(&str, Gate, Option<&str>)] = &[
-    ("preview_dialog", Gate::Acts, Some("dialog")),
-    ("preview_status", Gate::Reads, Some("status")),
-    ("preview_open", Gate::Acts, Some("open")),
-    ("preview_navigate", Gate::Acts, Some("navigate")),
-    ("preview_resize", Gate::Acts, Some("resize")),
-    ("preview_set_appearance", Gate::Acts, Some("setColorScheme")),
-    ("preview_click", Gate::Acts, Some("click")),
-    ("preview_type", Gate::Acts, Some("type")),
-    ("preview_hover", Gate::Acts, Some("hover")),
-    ("preview_select", Gate::Acts, Some("select")),
-    ("preview_drag", Gate::Acts, Some("drag")),
-    ("preview_upload", Gate::Acts, Some("upload")),
-    ("preview_press", Gate::Acts, Some("press")),
-    ("preview_scroll", Gate::Acts, Some("scroll")),
-    ("preview_evaluate", Gate::Acts, Some("evaluate")),
-    ("preview_wait_for", Gate::Reads, Some("waitFor")),
-    ("preview_recording_start", Gate::Acts, Some("recordingStart")),
-    ("preview_recording_stop", Gate::Acts, Some("recordingStop")),
-    ("preview_snapshot", Gate::Reads, Some("snapshot")),
-    ("html_preview", Gate::Reads, None),
-    ("html_render", Gate::Acts, None),
-];
+/// What a tool with no service says. Each row is the tool and its gate in the original. The HTML tools fail as the original's HTML renderer
+/// does when it has no browser.
+pub(crate) const UNAVAILABLE: &[(&str, Gate)] = &[("html_preview", Gate::Reads), ("html_render", Gate::Acts)];
 
-pub(crate) fn unavailable_tool(name: &str) -> Option<&'static (&'static str, Gate, Option<&'static str>)> {
+pub(crate) fn unavailable_tool(name: &str) -> Option<&'static (&'static str, Gate)> {
     UNAVAILABLE.iter().find(|(tool, ..)| *tool == name)
 }
 
@@ -104,7 +97,6 @@ pub(crate) fn unavailable_tool(name: &str) -> Option<&'static (&'static str, Gat
 /// writes the failure's own `message`; the preview snapshot prefixes it.
 pub(crate) fn failure_text(name: &str, error: &McpFailure) -> String {
     match name {
-        "preview_snapshot" => format!("Preview snapshot failed: {error}"),
         "html_preview" | "link_pull_request" | "unlink_pull_request" | "list_thread_pull_requests" | "watch_pull_request" | "unwatch_pull_request" => error.to_string(),
         _ if name.starts_with("preview_") => error.to_string(),
         _ => error.0.to_string(),
@@ -143,39 +135,21 @@ impl McpControlTools {
             "t3_worktree_status" => Box::pin(self.worktree_status(scope)).await,
             "t3_worktree_handoff" => Box::pin(self.worktree_handoff(scope, args)).await,
             "t3_preview_list" => self.preview_list(scope, args),
-            "t3_preview_close" => self.preview_close(scope),
+            "t3_preview_close" => Box::pin(self.preview_close(scope, args)).await,
+            other if crate::mcp_preview::PREVIEW_TOOLS.contains(&other) => Box::pin(self.preview_tool(scope, other, args)).await,
             other => match unavailable_tool(other) {
-                Some((_, gate, operation)) => self.answer_unavailable(scope, other, *gate, *operation),
+                Some((_, gate)) => self.answer_unavailable(scope, other, *gate),
                 None => Err(mcp_access::unavailable()),
             },
         }
     }
 
-    /// A tool whose service this server does not have. It runs the original's gate first, so the
-    /// refusals a caller would meet anyway still come first, then says what the original says.
-    fn answer_unavailable(&self, scope: &InvocationScope, name: &str, gate: Gate, operation: Option<&str>) -> Out {
+    /// A tool whose service this server does not have. It runs the original's gate first, so the refusals a caller would meet anyway still
+    /// come first, then says what the original says.
+    fn answer_unavailable(&self, scope: &InvocationScope, name: &str, gate: Gate) -> Out {
         mcp_access::check_store(&self.store, scope, if gate == Gate::Reads { Access::ReadsAsCaller } else { Access::ActsAsCaller }, &[])?;
-        let Some(operation) = operation else {
-            let what = if name == "html_preview" { "render an HTML preview" } else { "publish an HTML render" };
-            return Err(refusal("orchestration_error", &format!("This T3 server cannot {what}: it has no headless browser. Do not retry. To check a page, use a headless browser from the shell, such as Playwright, or curl.")));
-        };
-        scope.require_capability(McpCapability::Preview, true)?;
-        let thread = scope.require_thread("This tool")?;
-        Err(McpFailure(json!({"_tag":"PreviewAutomationNoAvailableHostError","operation":operation,"environmentId":scope.environment_id,"threadId":thread.thread_id,"providerSessionId":thread.provider_session_id,"providerInstanceId":thread.provider_instance_id})))
-    }
-
-    /// `t3_preview_list`: this thread's preview tabs. A server with no preview host never has one.
-    fn preview_list(&self, scope: &InvocationScope, _args: Value) -> Out {
-        mcp_access::check_store(&self.store, scope, Access::ReadsAsCaller, &[])?;
-        scope.require_capability(McpCapability::Preview, true)?;
-        Ok(json!({"sessions":[],"serverEpoch":crate::mcp_extra::process_epoch(),"revision":0,"nextCursor":null}))
-    }
-
-    /// `t3_preview_close`: closing a tab that does not exist changes nothing and succeeds, as it does there.
-    fn preview_close(&self, scope: &InvocationScope) -> Out {
-        mcp_access::check_store(&self.store, scope, Access::ActsAsCaller, &[])?;
-        scope.require_capability(McpCapability::Preview, true)?;
-        Ok(json!({}))
+        let what = if name == "html_preview" { "render an HTML preview" } else { "publish an HTML render" };
+        Err(refusal("orchestration_error", &format!("This T3 server cannot {what}: it has no headless browser. Do not retry. To check a page, use a headless browser from the shell, such as Playwright, or curl.")))
     }
 }
 
@@ -203,27 +177,18 @@ mod tests {
             let unavailable = unavailable_tool(name).is_some();
             assert!(handled != unavailable, "{name} must be handled or answered as unavailable, exactly one");
         }
-        assert_eq!(crate::mcp_control::HANDLED.len() + IMPLEMENTED.len(), 55);
-        assert_eq!(IMPLEMENTED.len(), 35);
-        // Exactly these are answered as unavailable on this server.
+        assert_eq!(crate::mcp_control::HANDLED.len() + IMPLEMENTED.len(), 74);
+        assert_eq!(IMPLEMENTED.len(), 54);
+        // Exactly the HTML tools are answered as unavailable on this server: they need a headless browser it does not have yet.
         let withheld: Vec<&str> = UNAVAILABLE.iter().map(|(name, ..)| *name).collect();
-        assert_eq!(
-            withheld,
-            [
-                "preview_dialog", "preview_status", "preview_open", "preview_navigate", "preview_resize", "preview_set_appearance", "preview_click", "preview_type", "preview_hover", "preview_select", "preview_drag",
-                "preview_upload", "preview_press", "preview_scroll", "preview_evaluate", "preview_wait_for", "preview_recording_start", "preview_recording_stop", "preview_snapshot", "html_preview", "html_render",
-            ]
-        );
-        // No preview host exists here, so every browser preview tool says so, with the original's no-host failure.
-        let preview: Vec<&str> = UNAVAILABLE.iter().filter(|(_, _, operation)| operation.is_some()).map(|(name, ..)| *name).collect();
+        assert_eq!(withheld, ["html_preview", "html_render"]);
+        // Every browser tool has a handler, and the handler module names the same ones.
+        let preview: Vec<&str> = IMPLEMENTED.iter().copied().filter(|name| name.starts_with("preview_")).collect();
         assert_eq!(preview.len(), 19);
-        assert!(preview.iter().all(|name| name.starts_with("preview_")));
-        // The HTML tools need a headless browser this server does not have.
-        let html: Vec<&str> = UNAVAILABLE.iter().filter(|(_, _, operation)| operation.is_none()).map(|(name, ..)| *name).collect();
-        assert_eq!(html, ["html_preview", "html_render"]);
-        // Reads and acts follow the original's declarations for the three tools that only read.
-        let reads: Vec<&str> = UNAVAILABLE.iter().filter(|(_, gate, _)| *gate == Gate::Reads).map(|(name, ..)| *name).collect();
-        assert_eq!(reads, ["preview_status", "preview_wait_for", "preview_snapshot", "html_preview"]);
+        assert_eq!(preview, crate::mcp_preview::PREVIEW_TOOLS);
+        // Reads and acts follow the original's declaration for the tool that only reads.
+        let reads: Vec<&str> = UNAVAILABLE.iter().filter(|(_, gate)| *gate == Gate::Reads).map(|(name, ..)| *name).collect();
+        assert_eq!(reads, ["html_preview"]);
     }
 
     fn tools() -> (McpControlTools, InvocationScope) {

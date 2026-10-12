@@ -1,20 +1,11 @@
 {
   "rpc": {
     "omitted": {},
-    "pending": {
-      "preview.open": "Preview browser (apps/server/src/preview/*): needs a headless browser host or the desktop browser channel; server side not ported.",
-      "preview.navigate": "Preview browser: not ported.",
-      "preview.resize": "Preview browser: not ported.",
-      "preview.adjust": "Preview browser: not ported.",
-      "preview.refresh": "Preview browser: not ported.",
-      "preview.close": "Preview browser: not ported.",
-      "preview.list": "Preview browser: not ported.",
-      "preview.clearProfile": "Preview browser: not ported.",
-      "preview.reportStatus": "Preview browser: not ported.",
-      "subscribePreviewEvents": "Preview browser: not ported."
-    },
+    "pending": {},
     "partial": {
       "device.configure": "Remote SSH device hosts are stored, and device.testHost probes them over SSH (ssh_device_host.rs), but the device service has the one local host: a remote host is never connected to, listed or opened.",
+      "preview.clearProfile": "Deletes the profile's storage directory (server_browser_profiles.rs); the environment has no running server browser whose context for it needs closing first.",
+      "preview.open": "Tabs are tracked in memory and the desktop-runtime path works end to end (preview_manager.rs); a `server` runtime tab is recorded but no page is ever rendered for it, as the environment has no server browser yet (`serverBrowser` is not advertised).",
       "server.getConfig": "OTLP export is not ported (the otlp*Enabled flags are false), and the local trace file holds the spans browsers exported but none of the server's own (trace_sink.rs). directEndpoints and remoteOpenTargets are served (environment_endpoints.rs)."
     }
   },
@@ -28,29 +19,12 @@
   },
   "mcp": {
     "pending": {
-      "preview_status": "Listed; answers PreviewAutomationNoAvailableHostError (no preview host).",
-      "preview_open": "As preview_status.",
-      "preview_dialog": "As preview_status.",
-      "preview_navigate": "As preview_status.",
-      "preview_resize": "As preview_status.",
-      "preview_set_appearance": "As preview_status.",
-      "preview_snapshot": "As preview_status.",
-      "preview_click": "As preview_status.",
-      "preview_type": "As preview_status.",
-      "preview_hover": "As preview_status.",
-      "preview_select": "As preview_status.",
-      "preview_drag": "As preview_status.",
-      "preview_upload": "As preview_status.",
-      "preview_press": "As preview_status.",
-      "preview_scroll": "As preview_status.",
-      "preview_evaluate": "As preview_status.",
-      "preview_wait_for": "As preview_status.",
-      "preview_recording_start": "As preview_status.",
-      "preview_recording_stop": "As preview_status.",
       "html_preview": "Listed; fails as the original's HTML renderer does without a browser.",
       "html_render": "Listed; fails as the original's HTML renderer does without a browser (htmlRender/headlessChrome.ts not ported)."
     },
-    "partial": {}
+    "partial": {
+      "preview_open": "Runs on whichever browser host is registered with the broker (preview_automation_broker.rs). This server registers none yet: the desktop's channel is not ported and the server's own browser is not built, so every browser tool answers PreviewAutomationNoAvailableHostError, as the original does with no host."
+    }
   },
   "settings": {
     "pending": {},

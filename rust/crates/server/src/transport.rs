@@ -1022,9 +1022,9 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
                             generation += 1;
                             let current_generation = generation;
                             let id=request.id.clone();let state=state.clone();let output=outgoing.clone();let finished=finished.clone();let completed_id=id.clone();let reported=reported.clone();
-                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers"|"subscribeServerConfig"|"subscribeResourceTelemetry"|"subscribeBackgroundPolicy"|"subscribeServerLifecycle"|"subscribeDeviceState"|"subscribeVcsStatus"|"pullRequests.subscribeRefreshes"|"git.runStackedAction"|"scheduledTasks.subscribe"|"provider.auth.subscribe"|"provider.install.subscribe"|"provider.codex.auth-callback.subscribe"|"provider.chatgpt.handoff.subscribe"|"subscribeWorktreeSetup"|"subscribeProjectClones"|"subscribeAuthAccess"|"cloud.installRelayClient"|"server.updateServerWithProgress") {
+                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers"|"subscribeServerConfig"|"subscribeResourceTelemetry"|"subscribeBackgroundPolicy"|"subscribeServerLifecycle"|"subscribeDeviceState"|"subscribePreviewEvents"|"subscribeVcsStatus"|"pullRequests.subscribeRefreshes"|"git.runStackedAction"|"scheduledTasks.subscribe"|"provider.auth.subscribe"|"provider.install.subscribe"|"provider.codex.auth-callback.subscribe"|"provider.chatgpt.handoff.subscribe"|"subscribeWorktreeSetup"|"subscribeProjectClones"|"subscribeAuthAccess"|"cloud.installRelayClient"|"server.updateServerWithProgress") {
                                 let(ack,acknowledged)=mpsc::channel(1);
-                                let task=tokio::spawn(async move {if request.tag=="cloud.installRelayClient" {install_relay_client_stream(request,state,session,output,acknowledged).await;}else if request.tag=="server.updateServerWithProgress" {self_update_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.auth.subscribe" {provider_auth_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.install.subscribe" {provider_install_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.codex.auth-callback.subscribe" {codex_auth_callback_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.chatgpt.handoff.subscribe" {chatgpt_handoff_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDeviceState" {device_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeBackgroundPolicy" {background_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerLifecycle" {lifecycle_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerConfig" {config_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeVcsStatus" {vcs_status_stream(request,state,session,output,acknowledged).await;}else if request.tag=="git.runStackedAction" {git_stacked_action_stream(request,state,session,output,acknowledged).await;}else if request.tag=="pullRequests.subscribeRefreshes" {pull_request_refresh_stream(request,state,session,output,acknowledged).await;}else if request.tag=="scheduledTasks.subscribe" {scheduled_tasks_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeResourceTelemetry" {resource_telemetry_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeWorktreeSetup" {worktree_setup_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeProjectClones" {project_clone_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeAuthAccess" {auth_access_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
+                                let task=tokio::spawn(async move {if request.tag=="cloud.installRelayClient" {install_relay_client_stream(request,state,session,output,acknowledged).await;}else if request.tag=="server.updateServerWithProgress" {self_update_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.auth.subscribe" {provider_auth_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.install.subscribe" {provider_install_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.codex.auth-callback.subscribe" {codex_auth_callback_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.chatgpt.handoff.subscribe" {chatgpt_handoff_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDeviceState" {device_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribePreviewEvents" {preview_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeBackgroundPolicy" {background_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerLifecycle" {lifecycle_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerConfig" {config_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeVcsStatus" {vcs_status_stream(request,state,session,output,acknowledged).await;}else if request.tag=="git.runStackedAction" {git_stacked_action_stream(request,state,session,output,acknowledged).await;}else if request.tag=="pullRequests.subscribeRefreshes" {pull_request_refresh_stream(request,state,session,output,acknowledged).await;}else if request.tag=="scheduledTasks.subscribe" {scheduled_tasks_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeResourceTelemetry" {resource_telemetry_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeWorktreeSetup" {worktree_setup_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeProjectClones" {project_clone_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeAuthAccess" {auth_access_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
                                 (Some(ack),task)
                             }else{
                                 let task=tokio::spawn(async move {
@@ -1372,6 +1372,9 @@ async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Va
     }
     if crate::review_service::METHODS.contains(&request.tag.as_str()) {
         return crate::review_service::command(&state, &request.tag, request.payload).await;
+    }
+    if crate::preview_rpc::METHODS.contains(&request.tag.as_str()) {
+        return crate::preview_rpc::command(&state, &request).await;
     }
     if request.tag.starts_with("terminal.") {
         return terminal_rpc(&state, &request).await;
@@ -2017,6 +2020,35 @@ async fn device_stream(
             request_id: request.id,
             exit: RpcExit::Success { value: Value::Null },
         },
+        Err(error) => failure(request.id, error),
+    };
+    let _ = output.send(response).await;
+}
+
+/// `subscribePreviewEvents`: every change to any thread's preview tabs from the moment of subscription, with no initial state (a client reads
+/// that with `preview.list`, whose revision orders it against these events).
+async fn preview_stream(
+    request: RpcRequest,
+    state: ApiState,
+    session: Session,
+    output: SocketSender,
+    mut ack: mpsc::Receiver<()>,
+) {
+    let result = async {
+        let _: t3_contracts::GetServerSettingsInput = serde_json::from_value(request.payload.clone()).map_err(|error| json!({"_tag":"SchemaDecodeError","message":error.to_string()}))?;
+        let mut events = crate::preview_rpc::manager(&state).subscribe();
+        loop {
+            let Some(event) = events.recv().await else { return Ok::<(), Value>(()) };
+            let active = state.auth.active_session(&session.session_id, Utc::now()).map_err(|_| session_ended(&request.tag))?;
+            authorize_rpc(&active, &request.tag)?;
+            if !chunk(&output, &mut ack, &request.id, vec![serde_json::to_value(event).unwrap()]).await {
+                return Ok(());
+            }
+        }
+    }
+    .await;
+    let response = match result {
+        Ok(()) => RpcServerMessage::Exit { request_id: request.id, exit: RpcExit::Success { value: Value::Null } },
         Err(error) => failure(request.id, error),
     };
     let _ = output.send(response).await;

@@ -50,6 +50,10 @@ pub use provider_runtime::*;
 
 pub mod preview;
 pub use preview::*;
+pub mod preview_session;
+pub use preview_session::*;
+pub mod preview_automation;
+pub use preview_automation::*;
 pub mod resource_telemetry;
 pub use resource_telemetry::*;
 
