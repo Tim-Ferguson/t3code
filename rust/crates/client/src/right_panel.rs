@@ -93,6 +93,9 @@ pub enum Surface {
     },
     /// One of the thread's terminals.
     Terminal { terminal_id: String },
+    /// A file the conversation holds rather than the project: the page an agent published with `html_render`, opened from its
+    /// row (`onFileOpen` with an attachment, `htmlRender: true`). It is shown in the app theme.
+    Attachment { attachment_id: String, name: String },
     /// The device picker (`device`), or a device chosen from it.
     Device {
         #[serde(default)]
@@ -120,6 +123,7 @@ impl Surface {
             Surface::Preview { resource_id: Some(tab) } => format!("browser:{tab}"),
             Surface::Preview { resource_id: None } => "browser:new".into(),
             Surface::Terminal { terminal_id } => format!("terminal:{terminal_id}"),
+            Surface::Attachment { attachment_id, .. } => format!("attachment:{attachment_id}"),
             Surface::Device { target, .. } => DeviceTarget::surface_id_of(target.as_ref()),
         }
     }
@@ -153,6 +157,7 @@ impl Surface {
             // The page's title is the session's; the panel draws it from there.
             Surface::Preview { .. } => "Browser".into(),
             Surface::Terminal { terminal_id } => crate::terminal_labels::label(terminal_id, None),
+            Surface::Attachment { name, .. } => name.clone(),
             Surface::Device { target, title } => title.clone().or_else(|| target.as_ref().map(|target| target.name.clone())).unwrap_or_else(|| "Device".into()),
         }
     }
@@ -282,6 +287,10 @@ impl Panels {
             panel.is_open = true;
             panel.active_surface_id = Some(id);
         });
+    }
+    /// Opens an attachment of the conversation as a tab; opening it again shows the tab it has.
+    pub fn open_attachment(&mut self, key: &str, attachment_id: &str, name: &str) {
+        self.user(key, |panel| panel.upsert(Surface::Attachment { attachment_id: attachment_id.to_owned(), name: name.to_owned() }));
     }
     pub fn open_pull_request(&mut self, key: &str, target: PullRequestTarget) {
         self.user(key, |panel| {

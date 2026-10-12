@@ -38,10 +38,10 @@ pub(crate) fn zone(milliseconds: i64) -> i32 {
 /// What the stream has told the page. `live` is false whenever the list may be out of date:
 /// before the first snapshot, while reconnecting, and after the connection is lost.
 #[derive(Debug, Clone, PartialEq, Default)]
-struct List {
-    tasks: Option<Vec<ScheduledTask>>,
-    live: bool,
-    problem: Option<String>,
+pub(crate) struct List {
+    pub(crate) tasks: Option<Vec<ScheduledTask>>,
+    pub(crate) live: bool,
+    pub(crate) problem: Option<String>,
 }
 
 #[component]
@@ -71,22 +71,12 @@ enum Action {
     Delete,
 }
 
-#[component]
-fn Tasks(state: Store<UiModel>, transport: TransportHandle, environment_label: String) -> Element {
+/// The scheduled tasks of the connected environment, live: one subscription while the component that asks is on screen and the
+/// connection can read them, dropped and made again when the connection changes. Also whether the connection may read them.
+pub(crate) fn use_task_list(state: Store<UiModel>, transport: &TransportHandle) -> (Signal<List>, Memo<bool>) {
     let mut list = use_signal(List::default);
-    let mut editor = use_signal(|| None::<Option<ScheduledTask>>);
-    let mut deliveries = use_signal(|| None::<ScheduledTask>);
-    let mut deleting = use_signal(|| None::<(String, String)>);
-    let mut busy = use_signal(BTreeSet::<String>::new);
     let readable = use_memo(move || connected_allows(state, AuthEnvironmentScope::OrchestrationRead));
-    // Whether the session may change tasks at all decides which controls exist; whether it can
-    // right now (connected, and not looking at a list that may be out of date) decides whether
-    // they work.
-    let operator = use_memo(move || state.destination().read().as_ref().is_some_and(|destination| state.environments().read().allows(destination, AuthEnvironmentScope::OrchestrationOperate)));
-    let writable = use_memo(move || operator() && connected_allows(state, AuthEnvironmentScope::OrchestrationOperate) && list.read().live);
-
-    // The list stream: one subscription while this page is on screen and the connection can read
-    // it. The resource restarts, and drops the stream, when the connection changes.
+    // The resource restarts, and drops the stream, when the connection changes.
     {
         let transport = transport.clone();
         use_resource(move || {
@@ -140,6 +130,22 @@ fn Tasks(state: Store<UiModel>, transport: TransportHandle, environment_label: S
             }
         });
     }
+
+    (list, readable)
+}
+
+#[component]
+fn Tasks(state: Store<UiModel>, transport: TransportHandle, environment_label: String) -> Element {
+    let (mut list, readable) = use_task_list(state, &transport);
+    let mut editor = use_signal(|| None::<Option<ScheduledTask>>);
+    let mut deliveries = use_signal(|| None::<ScheduledTask>);
+    let mut deleting = use_signal(|| None::<(String, String)>);
+    let mut busy = use_signal(BTreeSet::<String>::new);
+    // Whether the session may change tasks at all decides which controls exist; whether it can
+    // right now (connected, and not looking at a list that may be out of date) decides whether
+    // they work.
+    let operator = use_memo(move || state.destination().read().as_ref().is_some_and(|destination| state.environments().read().allows(destination, AuthEnvironmentScope::OrchestrationOperate)));
+    let writable = use_memo(move || operator() && connected_allows(state, AuthEnvironmentScope::OrchestrationOperate) && list.read().live);
 
     // Every row action says what went wrong where the user is looking, and runs alone per task.
     let act = {

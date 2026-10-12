@@ -374,3 +374,44 @@ async fn the_palette_opens_the_page() {
     assert!(control(&dom, PALETTE).is_none());
     fixture.finish(dom).await;
 }
+
+/// The thread details card, from the header's toggle: where the thread works, and only the scheduled tasks bound to this thread,
+/// with a switch that pauses and resumes one. The card belongs to its thread.
+#[tokio::test(flavor = "current_thread")]
+async fn the_thread_details_card_lists_the_automations_bound_to_its_thread_and_pauses_one() {
+    let fixture = Fixture::start(false).await;
+    let (mut dom, props, state) = open(&fixture, &OPERATE).await;
+    upsert(&mut dom, &props, state, json!({"id":"scheduled-task:mine","title":"Nightly review","threadId":"thread-a"}));
+    upsert(&mut dom, &props, state, json!({"id":"scheduled-task:other","title":"Elsewhere","threadId":"thread-b"}));
+    upsert(&mut dom, &props, state, json!({"id":"scheduled-task:loose","title":"Unbound"}));
+    state.view().set(View::Chat);
+    crate::runtime::diff_tests::open_thread(&mut dom, &props, state, "thread-a").await;
+    assert!(control(&dom, "Manage scheduled tasks").is_none() && !rendered_text(&dom).contains("Environment"), "closed until asked");
+    assert_eq!(control_attribute(&dom, "Toggle thread details panel", "aria-pressed").and_then(|(_, value)| value).as_deref(), Some("false"));
+    click_control(&mut dom, "Toggle thread details panel");
+    until(&mut dom, "the bound automation", |dom| control(dom, "Pause Nightly review").is_some()).await;
+    let text = rendered_text(&dom);
+    assert!(text.contains("Project") && text.contains("Automations") && !text.contains("Elsewhere") && !text.contains("Unbound"), "{text}");
+    assert_eq!(control_attribute(&dom, "Toggle thread details panel", "aria-pressed").and_then(|(_, value)| value).as_deref(), Some("true"));
+    assert!(control(&dom, "Run Nightly review now").is_some() && control(&dom, "Manage scheduled tasks").is_some());
+
+    // Pausing is the server's: the switch reads back what the live list says.
+    change_when_enabled(&mut dom, "Pause Nightly review", "false").await;
+    until(&mut dom, "the task to be paused", |dom| control(dom, "Resume Nightly review").is_some()).await;
+    assert!(rendered_text(&dom).contains("Paused"));
+
+    // The card belongs to its thread, and the command closes it.
+    crate::runtime::diff_tests::open_thread(&mut dom, &props, state, "thread-b").await;
+    assert!(!rendered_text(&dom).contains("Environment") && control(&dom, "Resume Nightly review").is_none());
+    crate::runtime::diff_tests::open_thread(&mut dom, &props, state, "thread-a").await;
+    until(&mut dom, "thread-a's card, still open", |dom| control(dom, "Resume Nightly review").is_some()).await;
+    crate::thread_details::toggle(state);
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert!(!rendered_text(&dom).contains("Environment") && crate::thread_details::open_keys(state).is_empty());
+
+    click_control(&mut dom, "Toggle thread details panel");
+    until(&mut dom, "the card again", |dom| control(dom, "Manage scheduled tasks").is_some()).await;
+    click_control(&mut dom, "Manage scheduled tasks");
+    assert_eq!(state.peek().view, View::ScheduledTasks);
+    fixture.finish(dom).await;
+}

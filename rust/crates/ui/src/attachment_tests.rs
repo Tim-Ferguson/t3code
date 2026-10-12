@@ -764,5 +764,14 @@ async fn feedback_in_a_codex_thread_goes_to_the_provider_instead_of_the_agent_an
     dom.in_scope(ScopeId::APP, || send_message(&props.transport, state));
     until(&mut dom, "the confirmation", |dom| rendered_text(dom).contains("Feedback sent to OpenAI") && rendered_text(dom).contains("Thread ID: fixture-feedback-")).await;
     assert_eq!((state.peek().draft.as_str(), messages(state)), ("", before));
+    // The exchange is a banner over the composer, with a way to copy the ID and to dismiss it, and two rows of the conversation that
+    // exist only here: what was typed, and the answer.
+    assert!(control(&dom, "Copy ID").is_some() && control(&dom, "Dismiss feedback notice").is_some());
+    let text = rendered_text(&dom);
+    assert!(text.contains("/feedback it forgot the tests") && text.contains("Feedback sent to OpenAI.") && text.contains("Thread ID: fixture-feedback-"), "{text}");
+    click_control(&mut dom, "Dismiss feedback notice");
+    assert!(control(&dom, "Copy ID").is_none() && control(&dom, "Dismiss feedback notice").is_none());
+    // As in the original, the rows are made from the same submission, so they go with the banner.
+    assert!(!rendered_text(&dom).contains("Feedback sent to OpenAI."));
     fixture.finish(dom).await;
 }

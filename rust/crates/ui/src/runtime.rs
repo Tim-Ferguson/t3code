@@ -169,6 +169,10 @@ pub struct UiModel {
     pub pr_states: std::collections::BTreeMap<String, (String, bool)>,
     pub lifecycle: crate::thread_lifecycle::Model,
     pub server_update: crate::server_update::Model,
+    /// The `/feedback` commands of each thread this session sent, which the composer and the conversation show (`thread_feedback.rs`).
+    pub feedback: crate::thread_feedback::Submissions,
+    /// The threads whose details card is open, by environment and thread (`thread_details.rs`).
+    pub thread_details: std::collections::BTreeSet<String>,
     pub relations: crate::thread_relations::Model,
     /// The SSH environments added, and the one the window is switched to.
     pub ssh: crate::ssh_environments::Model,
@@ -1406,7 +1410,7 @@ pub fn send_with(handle: &TransportHandle, state: Store<UiModel>, options: SendO
     // `/feedback` in a Codex thread is not a message to the agent: the conversation goes to OpenAI.
     if attachments.is_empty() && context_ids.is_empty() && options.edit_run.is_none() {
         if let Some(reason) = t3_client::thread_feedback::parse_command(&prompt).filter(|_| crate::thread_feedback::is_codex(state, &selection)) {
-            crate::thread_feedback::submit(handle, state, &thread_id, reason);
+            crate::thread_feedback::submit(handle, state, &thread_id, prompt.trim().to_owned(), reason);
             return;
         }
     }
@@ -3669,6 +3673,10 @@ mod prompt_history_tests;
 #[cfg(all(test, unix))]
 #[path = "usage_tests.rs"]
 mod usage_tests;
+
+#[cfg(all(test, unix))]
+#[path = "html_render_tests.rs"]
+mod html_render_tests;
 
 #[cfg(all(test, unix))]
 #[path = "usage_hub_tests.rs"]

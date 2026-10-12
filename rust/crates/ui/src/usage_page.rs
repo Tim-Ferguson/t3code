@@ -1,8 +1,8 @@
 //! The Usage page: what the coding agents on this machine cost and processed (Cost, Tokens) and
 //! how much of each subscription is left (Limits). Port of `UsagePage.tsx`,
 //! `UsageProviderChart.tsx`, `UsageShareBar.tsx` and `UsageModelDialog.tsx` for the one
-//! environment this app is connected to. Price overrides and the Cursor keychain prompt are
-//! not ported.
+//! environment this app is connected to. The editor of custom model prices and mappings is
+//! `usage_prices.rs`; the Cursor keychain prompt is not ported.
 //!
 //! The summary read scans transcript files and can take seconds. It runs when the page opens,
 //! when the period changes and when the refresh button is pressed, never on a timer, and says
@@ -63,11 +63,14 @@ pub(crate) struct Model {
     pub limits_refreshing: bool,
     /// An automatic refresh of the limits waits until this time (a manual one never does).
     pub limits_refresh_after: Option<(EnvironmentId, i64)>,
+    /// The editor of custom model prices, when open: `Some(None)` from the page's button, `Some(Some(model))` from a model's
+    /// "Set price". It belongs to the page (gone with it), so it never outlives the environment it edits.
+    pub prices: Option<Option<String>>,
 }
 impl Default for Model {
     fn default() -> Self {
         let prefs = Preferences::default();
-        Self { metric: prefs.metric, days: prefs.window_days, hydrated: false, chosen: false, loaded: None, scanning: false, error: None, generation: 0, limits_now: 0.0, limits_refreshing: false, limits_refresh_after: None }
+        Self { metric: prefs.metric, days: prefs.window_days, hydrated: false, chosen: false, loaded: None, scanning: false, error: None, generation: 0, limits_now: 0.0, limits_refreshing: false, limits_refresh_after: None, prices: None }
     }
 }
 
@@ -365,6 +368,7 @@ fn Body(state: Store<UiModel>, transport: TransportHandle) -> Element {
                             onclick: { let transport = transport.clone(); move |_| select_period(&transport, state, days) }, "{text}" }
                     }
                 }
+                button { r#type: "button", "aria-label": "Model prices", title: "Custom model prices and mappings", onclick: move |_| state.usage().write().prices = Some(None), "Model prices" }
                 button { r#type: "button", "aria-label": if showing_limits { "Refresh limits" } else { "Refresh usage" }, "aria-busy": "{busy}", disabled: busy || !is_connected || (!showing_limits && !can_read),
                     onclick: { let transport = transport.clone(); move |_| refresh(&transport, state) }, if busy { "Refreshing\u{2026}" } else { "\u{21bb} Refresh" } }
             }
@@ -374,7 +378,15 @@ fn Body(state: Store<UiModel>, transport: TransportHandle) -> Element {
         else if !can_read { p { class: "muted", role: "status", "This connection cannot read usage." } }
         else { Totals { state, transport: transport.clone(), loaded, scanning: model.scanning, error: model.error.clone(), metric: model.metric, days: model.days } }
         limits_view::RedeemDialog { state, transport: transport.clone() }
+        if let Some(initial) = model.prices.clone() {
+            crate::usage_prices::Editor { state, transport: transport.clone(), models: priced_models(&model), initial_model: initial, onclose: move |_| state.usage().write().prices = None }
+        }
     }
+}
+
+/// The models the page has usage for, offered while typing a model into the price editor.
+fn priced_models(model: &Model) -> Vec<String> {
+    model.loaded.as_ref().map(|data| data.0.usage.iter().flat_map(|environment| environment.summary.buckets.iter().map(|bucket| bucket.model.clone())).collect()).unwrap_or_default()
 }
 
 #[component]
@@ -398,7 +410,7 @@ fn metric_value(merged: &MergedUsage, cost: bool) -> String {
 
 #[component]
 fn Totals(state: Store<UiModel>, transport: TransportHandle, loaded: Option<Data>, scanning: bool, error: Option<String>, metric: &'static str, days: i64) -> Element {
-    let _ = (&state, &transport);
+    let _ = &transport;
     let cost = metric == "cost";
     let hourly = days == 1;
     let mut model_key = use_signal(|| None::<String>);
@@ -488,7 +500,7 @@ fn Totals(state: Store<UiModel>, transport: TransportHandle, loaded: Option<Data
             else { ModelTable { loaded: data.clone(), tokens: !cost, onopen: move |key| model_key.set(Some(key)) } }
         }
         if let Some(model) = selected {
-            ModelDialog { loaded: data.clone(), model, cost, hourly, periods: periods.clone(), labels: chart_labels(&periods, hourly, zone_value), onclose: move |_| model_key.set(None) }
+            ModelDialog { loaded: data.clone(), model, cost, hourly, periods: periods.clone(), labels: chart_labels(&periods, hourly, zone_value), onclose: move |_| model_key.set(None), onset_price: move |name: String| state.usage().write().prices = Some(Some(name)) }
         }
     }
 }
@@ -638,7 +650,7 @@ fn TimeTable(loaded: Data, hourly: bool, active: Vec<&'static str>) -> Element {
 /// One model's usage in the current window, opened from the Breakdown list. The trend and mixes
 /// come from the same merge as the page, narrowed to this model's buckets.
 #[component]
-fn ModelDialog(loaded: Data, model: logic::ModelTotals, cost: bool, hourly: bool, periods: Vec<String>, labels: Vec<String>, onclose: EventHandler<()>) -> Element {
+fn ModelDialog(loaded: Data, model: logic::ModelTotals, cost: bool, hourly: bool, periods: Vec<String>, labels: Vec<String>, onclose: EventHandler<()>, onset_price: EventHandler<String>) -> Element {
     let data = &loaded.0;
     let narrowed: Vec<EnvironmentUsage> = data.usage.iter().map(|environment| {
         let mut environment = environment.clone();
@@ -678,7 +690,9 @@ fn ModelDialog(loaded: Data, model: logic::ModelTotals, cost: bool, hourly: bool
                 if usage.speed_cost.fast + usage.speed_cost.ultrafast > 0.0 { ShareBar { label: "Cost by speed", segments: logic::speed_cost_segments(&usage.speed_cost), tokens: false, aside: Some(usage.speed_cost.premium) } }
             }
             if model.unpriced_tokens > 0.0 { p { class: "muted", "{logic::format_tokens(model.unpriced_tokens)} tokens have no known price" } }
-            div { class: "dialog-actions", button { r#type: "button", onclick: move |_| onclose.call(()), "Close" } }
+            div { class: "dialog-actions",
+                if model.unpriced_tokens > 0.0 { button { r#type: "button", class: "primary", "aria-label": "Set price", onclick: { let name = model.model.clone(); move |_| { onclose.call(()); onset_price.call(name.clone()); } }, "Set price" } }
+                button { r#type: "button", onclick: move |_| onclose.call(()), "Close" } }
         }
     } }
 }

@@ -3,7 +3,8 @@
 //! Port of `deriveMessagesTimelineRows` (`MessagesTimeline.logic.ts`), the work entries of
 //! `session-logic.ts` and `packages/client-runtime/src/work-log/presentation.ts`.
 //! T3 Code's own tools are named and summarised by `t3_tools`, and a shell command is read by
-//! `command_label`. Left out, and named where it would sit: published HTML pages and MCP apps.
+//! `command_label`. Published HTML pages are `Kind::HtmlRender` entries (`html_render`). Left out, and named where it would
+//! sit: MCP apps.
 use regex::Regex;
 use serde_json::Value;
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -950,6 +951,9 @@ pub enum Kind {
     /// A plan or other row that is never grouped or folded.
     Standalone { run_id: Option<String> },
     Work(Work),
+    /// A page an agent published with `html_render` (`kind: "html-render"`). It stays visible when its turn or attempt folds, and
+    /// is never grouped with tool calls.
+    HtmlRender { run_id: Option<String>, page: crate::html_render::Reference },
     /// A fork, handoff, interrupt marker, secret request or subagent.
     Event { item_type: String, run_id: Option<String>, provider_turn_id: Option<String>, status: String },
 }
@@ -974,7 +978,7 @@ impl Entry {
         match &self.kind {
             Kind::Message { role_user: false, run_id, .. } => run_id.as_deref(),
             Kind::Work(work) => work.run_id.as_deref(),
-            Kind::Standalone { run_id } => run_id.as_deref(),
+            Kind::Standalone { run_id } | Kind::HtmlRender { run_id, .. } => run_id.as_deref(),
             _ => None,
         }
     }
@@ -1062,7 +1066,10 @@ pub fn entries(items: &[Value], attempts: &[Value], nodes: &[Value]) -> Vec<Entr
                 provider_turn_id: item["providerTurnId"].as_str().map(str::to_owned),
                 status: item["status"].as_str().unwrap_or_default().to_owned(),
             },
-            _ => Kind::Work(Work::from_item(item)),
+            _ => match crate::html_render::from_item(item) {
+                Some(page) => Kind::HtmlRender { run_id: run_id.clone(), page },
+                None => Kind::Work(Work::from_item(item)),
+            },
         };
         let id = if let Kind::Message { id: message_id, .. } = &entry_kind { message_id.clone() } else { id };
         result.push(Entry { row: index, id, created_at: start_of(row), attempt: resolve(item), kind: entry_kind });
@@ -1524,7 +1531,8 @@ fn superseded_folds(entries: &[Entry], unfolded: &HashSet<String>, live_subagent
     let mut by_attempt: HashMap<String, Vec<usize>> = HashMap::new();
     for (index, entry) in entries.iter().enumerate() {
         let Some(attempt) = entry.attempt.as_ref().filter(|attempt| attempt.status == "superseded" && !unfolded.contains(&attempt.run_id)) else { continue };
-        if matches!(&entry.kind, Kind::Message { role_user: true, .. }) || is_persistent_resource(entry) || live_subagents.contains(&index) || entry.is_work(|work| work.item_type == "system_notice") {
+        // A published page stays visible, as it does when its turn folds.
+        if matches!(&entry.kind, Kind::Message { role_user: true, .. } | Kind::HtmlRender { .. }) || is_persistent_resource(entry) || live_subagents.contains(&index) || entry.is_work(|work| work.item_type == "system_notice") {
             continue;
         }
         if !by_attempt.contains_key(&attempt.id) {

@@ -107,6 +107,21 @@ impl Drop for Pending {
     }
 }
 impl Themes {
+    /// The palette the app paints now, as the HTML renders wear it (`useHtmlRenderTheme`, `resolveActiveThemeColors`): the active
+    /// theme's colors for the resolved appearance, or the stock look when no theme applies. Read in a component, it follows a
+    /// change of theme, of mode, or of an edited palette.
+    pub fn html_render_theme(&self, sans: &str, mono: &str) -> t3_client::html_render::Theme {
+        use t3_client::html_render::{DEFAULT_CODE_FONT_STACK, DEFAULT_SANS_FONT_STACK, font_stack, theme};
+        let snapshot = self.snapshot.read();
+        let catalog = self.catalog.read();
+        let appearance = snapshot.resolved_theme;
+        let id = catalog.half(&snapshot.theme, snapshot.theme_halves.as_ref(), appearance);
+        let colors = catalog
+            .definition(id)
+            .map(|definition| definition.colors(appearance).unwrap_or(&definition.colors))
+            .unwrap_or(&catalog.data.standard[&appearance]);
+        theme(colors, appearance, &font_stack(sans, DEFAULT_SANS_FONT_STACK), &font_stack(mono, DEFAULT_CODE_FONT_STACK))
+    }
     pub fn collection(
         &self,
         id: String,

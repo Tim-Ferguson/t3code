@@ -26,6 +26,8 @@ enum Kind {
     Link(String, String),
     Image(String, String),
     Fence(String),
+    /// A skill named in a sent message (`$name`, the raw text), drawn as a chip labelled with `Node::text`.
+    Skill(String),
     Transparent,
 }
 #[derive(Clone, PartialEq)]
@@ -214,11 +216,56 @@ impl Cache {
     }
 }
 
+/// `renderSkillInlineMarkdownChildren`: the words of the text that name one of `skills` (name, label) become chips. Code, links and images
+/// keep their text, as in the original.
+fn apply_skills(nodes: Vec<Node>, skills: &[(String, String)]) -> Vec<Node> {
+    let label = |name: &str| skills.iter().find(|(skill, _)| skill == name).map(|(_, label)| label.clone());
+    fn walk(nodes: Vec<Node>, label: &dyn Fn(&str) -> Option<String>) -> Vec<Node> {
+        nodes
+            .into_iter()
+            .flat_map(|mut node| match &node.kind {
+                Kind::Fence(_) | Kind::Code | Kind::Link(..) | Kind::Image(..) | Kind::Skill(_) => vec![node],
+                Kind::Transparent if node.children.is_empty() && !node.text.is_empty() => {
+                    let mut offset = 0;
+                    t3_client::skill_tokens::split(&node.text, label)
+                        .into_iter()
+                        .map(|piece| {
+                            let start = node.range.start + offset;
+                            match piece {
+                                t3_client::skill_tokens::Piece::Text(text) => {
+                                    offset += text.len();
+                                    let mut leaf = Node::new(Kind::Transparent, start..start + text.len());
+                                    leaf.text = text;
+                                    leaf
+                                }
+                                t3_client::skill_tokens::Piece::Skill { raw, label } => {
+                                    offset += raw.len();
+                                    let mut chip = Node::new(Kind::Skill(raw.clone()), start..start + raw.len());
+                                    chip.text = label;
+                                    chip
+                                }
+                            }
+                        })
+                        .collect()
+                }
+                _ => {
+                    let children = std::mem::take(&mut node.children);
+                    node.children = Rc::new(walk(Rc::try_unwrap(children).unwrap_or_else(|shared| (*shared).clone()), label));
+                    vec![node]
+                }
+            })
+            .collect()
+    }
+    walk(nodes, &label)
+}
+
+/// `skills` are the skills of the provider as (name, label): where a sent message names one, it is a chip.
 #[component]
-pub(crate) fn Markdown(text: String) -> Element {
+pub(crate) fn Markdown(text: String, #[props(default)] skills: Vec<(String, String)>) -> Element {
     let cache = use_hook(|| Rc::new(std::cell::RefCell::new(Cache::default())));
-    let nodes = use_memo(use_reactive((&text,), move |(text,)| {
-        Rc::new(cache.borrow_mut().parse(&text))
+    let nodes = use_memo(use_reactive((&text, &skills), move |(text, skills)| {
+        let parsed = cache.borrow_mut().parse(&text);
+        Rc::new(if skills.is_empty() { parsed } else { apply_skills(parsed, &skills) })
     }));
     rsx! {div {class:"markdown",for node in nodes.read().iter(){RenderNode{key:"{node.range.start}:{kind_key(&node.kind)}",node:node.clone()}}}}
 }
@@ -307,6 +354,12 @@ fn RenderNode(node: Node) -> Element {
             let (language, title) = fence_parts(info);
             rsx! {CodeBlock {code:node.plain_text(),language,title}}
         }
+        Kind::Skill(raw) => rsx! {
+            span { class: "context-chip skill", "data-markdown-copy": "{raw}", title: "{raw}",
+                span { class: "context-chip-icon", "aria-hidden": "true", "\u{2b21}" }
+                span { class: "context-chip-label", "{node.text}" }
+            }
+        },
         Kind::Transparent => rsx! {"{node.text}" {children}},
     }
 }
@@ -456,6 +509,33 @@ mod tests {
                 }
             }
         }
+    }
+    fn chips(nodes: &[Node], out: &mut Vec<(String, String)>) {
+        for node in nodes {
+            if let Kind::Skill(raw) = &node.kind {
+                out.push((raw.clone(), node.text.clone()));
+            }
+            chips(&node.children, out);
+        }
+    }
+    #[test]
+    fn a_skill_named_in_text_is_a_chip_but_not_in_code_a_link_or_a_fence() {
+        let skills = vec![("code-review".to_owned(), "Code Review".to_owned())];
+        let source = "run $code-review now, **$code-review** too, `$code-review`, [$code-review](https://example.com), $nope\n\n```\n$code-review\n```\n";
+        let nodes = apply_skills(parse(source), &skills);
+        let mut found = Vec::new();
+        chips(&nodes, &mut found);
+        assert_eq!(found, vec![("$code-review".to_owned(), "Code Review".to_owned()); 2], "plain text and strong text only");
+        // The text around a chip is kept, and the ranges of siblings differ so their keys do.
+        let paragraph = &nodes[0].children;
+        let starts: Vec<_> = paragraph.iter().map(|node| (node.range.start, kind_key(&node.kind))).collect();
+        assert_eq!(starts.len(), starts.iter().collect::<std::collections::BTreeSet<_>>().len(), "{starts:?}");
+        assert_eq!(paragraph[0].text, "run ");
+        assert!(matches!(&paragraph[1].kind, Kind::Skill(raw) if raw == "$code-review") && paragraph[2].text.starts_with(" now, "));
+        // Without skills nothing changes.
+        let mut none = Vec::new();
+        chips(&parse(source), &mut none);
+        assert!(none.is_empty());
     }
     #[test]
     fn completed_large_prefix_is_reused_and_document_definitions_invalidate_it() {

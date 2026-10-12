@@ -49,9 +49,17 @@ async fn reasoning_todo_and_usage_show_while_the_turn_runs_and_nothing_keeps_wor
     until(&mut dom, "the first thought in the open group", |dom| rendered_text(dom).contains("Reading the task")).await;
     until(&mut dom, "the plan and the usage", |dom| rendered_text(dom).contains("Plan updated") && control(dom, "Context window 0.1% used").is_some()).await;
     assert!(control(&dom, "Stop generation").is_some());
+    // While the plan's turn runs, a badge over the composer says how far it has got and opens the steps.
+    assert!(control(&dom, "Tasks: 2 of 2 complete. Current task: Write").is_some(), "{}", rendered_text(&dom));
+    assert!(control(&dom, "Task list. 2 of 2 complete.").is_none());
+    click_control(&mut dom, "Tasks: 2 of 2 complete. Current task: Write");
+    assert!(control(&dom, "Task list. 2 of 2 complete.").is_some() && control(&dom, "Collapse tasks: 2 of 2 complete. Current task: Write").is_some());
+    click_control(&mut dom, "Collapse tasks: 2 of 2 complete. Current task: Write");
+    assert!(control(&dom, "Task list. 2 of 2 complete.").is_none());
 
     click_control(&mut dom, "Stop generation");
     until(&mut dom, "the run to end", |dom| !rendered_text(dom).contains("Working for") && control(dom, "Stop generation").is_none()).await;
+    assert!(control(&dom, "Tasks: 2 of 2 complete. Current task: Write").is_none(), "the badge goes with the turn");
     let text = rendered_text(&dom);
     // The projection still calls the plan active, but nothing is marked as being worked on.
     let todo = item_of_type(state, "todo_list").unwrap();

@@ -14,6 +14,8 @@ mod load_balancing;
 mod environment_switcher;
 mod fleet;
 mod composer_banners;
+mod composer_tasks;
+mod html_render;
 mod composer_menu;
 mod composer_panels;
 mod composer_rest;
@@ -118,6 +120,7 @@ mod storage_page;
 mod integrations_page;
 mod browser_settings;
 mod folder_browser;
+mod thread_details;
 mod thread_feedback;
 mod subagent_rows;
 mod thread_status_line;
@@ -145,6 +148,7 @@ mod link_menus;
 mod import_projects;
 mod usage_hubs;
 mod usage_page;
+mod usage_prices;
 mod timeline_scroll;
 mod work_rows;
 mod worktree_setup;
@@ -501,6 +505,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                     span { class: "workspace-title", "{title}" }
                     command_palette::Button { state }
                     if view == View::Chat && (active.is_some() || state.selected_project().read().is_some()) { right_panel::Toggle { state, hint: runner.keys.label("rightPanel.toggle") } }
+                    if view == View::Chat { if let Some(active_thread) = active.as_ref() { thread_details::Toggle { key: "details-toggle:{active_thread.id}", state, thread_id: active_thread.id.to_string(), hint: runner.keys.label("threadPanel.toggle") } } }
                     if let Some(active_thread) = active.clone() {
                       div { class: "header-actions",
                         {
@@ -533,6 +538,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                       }
                     }
                 }
+                if view == View::Chat { if let Some(active_thread) = active.as_ref() { thread_details::Card { key: "details:{active_thread.id}", state, transport: transport.clone(), thread_id: active_thread.id.to_string() } } }
                 // A failed git action of the open thread's workspace hangs from here, inside this column.
                 if let Some(active_thread) = active.as_ref().filter(|_| view == View::Chat) {
                     {
@@ -777,6 +783,7 @@ fn ThreadTimeline(
                     if let Some((id,error))=&*history_error.read(){if id==&thread_id {p {class:"history-error",role:"alert","{error}"}}}
                 }
                 {rendered.into_iter()}
+                thread_feedback::Rows { state, thread_id: thread_id.clone() }
                 thread_status_line::StatusLine { state, transport: transport.clone(), thread_id: thread_id.clone(), can_operate }
             } else { p { class: "muted", "Loading thread…" } }
             div {"data-timeline-spacer":"true","aria-hidden":"true"}
@@ -1118,9 +1125,14 @@ fn Composer(
     let edit_hint = try_consume_context::<keys::Keys>().and_then(|keys| keys.label("thread.editQueuedMessage"));
     let steer_hint = try_consume_context::<keys::Keys>().and_then(|keys| keys.label("thread.steerQueuedMessage"));
     rsx! {
-        limits_view::RecoveryHost { state, transport: transport.clone(), thread_id: thread.id.to_string(), shell: recovery_props(&thread) }
-        limits_view::UsageLimitsPanel { state, thread_id: thread.id.to_string(), instance_id: thread.provider_instance_id.to_string() }
-        composer_banners::Stack { server_update::Banners { state, transport: transport.clone() } }
+        // The notices dock together, in the original's order: the feedback exchange, the usage-limit recovery and report, the update.
+        composer_banners::Stack {
+            composer_tasks::Tasks { key: "tasks:{thread.id}", state, thread_id: thread.id.to_string() }
+            thread_feedback::Banners { state, thread_id: thread.id.to_string() }
+            limits_view::RecoveryHost { state, transport: transport.clone(), thread_id: thread.id.to_string(), shell: recovery_props(&thread) }
+            limits_view::UsageLimitsPanel { state, thread_id: thread.id.to_string(), instance_id: thread.provider_instance_id.to_string() }
+            server_update::Banners { state, transport: transport.clone() }
+        }
         composer_panels::PendingRequests {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate}
         composer_panels::QueuedRuns {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate,editing,edit_hint,steer_hint:steer_hint.clone()}
         composer_panels::GoalStrip {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate}

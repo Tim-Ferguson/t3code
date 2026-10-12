@@ -52,11 +52,10 @@
     "handled": {},
     "partial": {
       "navigation.back": "The page's history, on the web build, where the address follows the view; the desktop window has no address, so the command is not offered there (useNavigationHistory).",
-      "navigation.forward": "As navigation.back."
+      "navigation.forward": "As navigation.back.",
+      "threadPanel.toggle": "thread_details.rs: the header toggle and the command open a card at the conversation's top right (Workspace summary, the Automations bound to the thread with pause/resume, run now and the way to Scheduled tasks). Not built: the card as a popover when the window is narrow, the density folding, its saved state, and the controls the original gathers in it (open in editor, branch, project scripts, Git actions, lineage), which stay in the header. The command has no default key, as in the original."
     },
-    "pending": {
-      "threadPanel.toggle": "The thread details panel (ThreadDetailsPanel/ThreadDetailsCard) as a toggle beside the right panel: the Rust header shows its parts inline."
-    },
+    "pending": {},
     "omitted": {
       "button without handler ui/desktop_updates.rs \"Check for Updates\"": "Deliberately disabled with its reason shown: this app has no update feed (desktop_updates.rs).",
       "button without handler ui/git_control.rs \"{label}\"": "A disabled busy placeholder while a Git action runs.",
@@ -90,12 +89,19 @@
     }
   },
   "caps": {
-    "handled": {},
+    "handled": {
+      "usagePriceOverrides": {
+        "probe": "usage_prices.rs::usagePriceOverrides",
+        "reason": "usage_prices.rs: the Usage page's editor of custom model prices (the page's one environment stands where the original's Apply-to menu is)"
+      },
+      "usageModelAliases": {
+        "probe": "usage_prices.rs::usageModelAliases",
+        "reason": "usage_prices.rs: the editor's Map-to column"
+      }
+    },
     "partial": {},
     "pending": {
-      "usagePriceOverrides": "Price override editor of the Usage page (UsagePriceOverrides): not built.",
-      "usageModelAliases": "Model alias editor of the Usage page: not built.",
-      "requiredWorktreeBootstrap": "Starting one message on several models at once (multipleModelSelections in ChatView/ChatComposer): the Rust composer picks one model. Server advertises it."
+      "requiredWorktreeBootstrap": "Starting one message on several models at once (multipleModelSelections in ChatView/ChatComposer): the Rust composer picks one model. Not started: the original sends from a new thread of a Git project with a base branch and starts one thread for each selected model, each with its own worktree, which crosses the model picker, the new-thread form and the send path in runtime.rs; the server advertises the capability."
     },
     "omitted": {
       "connectionProbe": "See rpc server.probe: the Rust client does not probe."
@@ -297,7 +303,6 @@
       "preview.setAnnotationSendEnabled": "As preview.setAnnotationTheme.",
       "preview.pickElement": "As preview.setAnnotationTheme.",
       "preview.cancelPickElement": "As preview.setAnnotationTheme.",
-      "preview.captureScreenshot": "Screenshots of a tab for the chat (revealArtifact, copyArtifactToClipboard follow from it) are not built; the server's browser can take them for agents (preview_screenshot), the panel has no button.",
       "preview.revealArtifact": "As preview.captureScreenshot.",
       "preview.copyArtifactToClipboard": "As preview.captureScreenshot.",
       "preview.pictureInPicture": "Not built: the panel's tab cannot be popped out into a window of its own.",
@@ -305,7 +310,8 @@
       "preview.*.save": "As preview.recording.",
       "onTrackpadScrollEnd": "Not deliverable by the windowing layer: tao's macOS view sees a scrollWheel (with its NSEventPhase) only when its WKWebView subview does not take the event, and the web view takes every scroll over the page, so tao's MouseWheel phase Ended never arrives; wry has no scroll hook; Windows and Linux report no gesture end to the window either. The only consumer is the device viewport (the other agent's panel). A macOS NSEvent local monitor from objc2-app-kit could report NSEventPhaseEnded, but it cannot be tried without a trackpad and a panel to read it.",
       "checkSystemPermission": "No consumer: the only caller is the Integrations page's Safari cookie import (full-disk-access), and this app has no Integrations page or Safari import. Reading a privacy permission would touch the system, so it is not built ahead of a caller.",
-      "openSystemSettings": "No consumer: the callers are the Integrations page's Safari import row and the local API's shell.openSystemSettings, neither built. Opening the system's privacy settings would touch the system, so it is not built ahead of a caller."
+      "openSystemSettings": "No consumer: the callers are the Integrations page's Safari import row and the local API's shell.openSystemSettings, neither built. Opening the system's privacy settings would touch the system, so it is not built ahead of a caller.",
+      "preview.captureScreenshot": "Screenshots of a tab for the chat (revealArtifact, copyArtifactToClipboard follow from it) are not built. The original's button asks the Electron shell to write the page to a file and reveal it; the server offers no RPC or viewer-socket message that returns a tab's picture (its screenshots are the MCP preview_snapshot tool, answering agents, mcp_preview.rs). A client-side capture of the last frame the panel received would be a new design, not a port."
     },
     "omitted": {
       "requestSnapShotPermissions": "SnapShots: Electron-only native screen capture with no Rust counterpart planned.",
@@ -585,27 +591,42 @@
       "right panel surface device": {
         "probe": "right_panel.rs::surface @ Surface::Device \\{ \\.\\. \\} => match thread_id",
         "reason": "device_panel.rs"
+      },
+      "timeline row html-render": {
+        "probe": "html_render.rs::allow-scripts allow-forms",
+        "reason": "html_render.rs Frame: the page in a sandboxed frame in the app theme, fitted to its height, openable in the right panel (Surface::Attachment)"
+      },
+      "composer ComposerTasksBadge": {
+        "probe": "composer_tasks.rs::data-composer-tasks-badge",
+        "reason": "composer_tasks.rs: the plan badge over the composer and its list of steps (the scheduled tasks bound to a thread are the thread details panel's Automations)"
+      },
+      "composer ComposerFeedback": {
+        "probe": "thread_feedback.rs::Dismiss feedback notice",
+        "reason": "thread_feedback.rs: the banner (Copy ID, dismiss) and the two local rows of the exchange"
+      },
+      "composer ComposerBanner": {
+        "probe": "composer_banners.rs::composer-banner-actions",
+        "reason": "composer_banners.rs Banner carries the feedback, usage-limit recovery and server update notices; /usage-limits and the plan badge dock beside them"
+      },
+      "message context skill": {
+        "probe": "markdown.rs::Kind::Skill",
+        "reason": "markdown.rs: a $skill of the thread's provider in a sent message is a chip (skill_tokens.rs)"
       }
     },
     "partial": {
-      "message context mention": "The @file reference is sent as text and shown as text; the original's inline file chip with its icon (FileTagChip, SkillInlineText) is not drawn.",
-      "message context skill": "As mention: a $skill token shows as plain text, not the original's inline chip.",
-      "composer ComposerTasksBadge": "Background work is listed in composer_panels; the scheduled-tasks badge/popover (ThreadAutomationsPanel) is not built.",
       "composer composer-code-block": "Rich text composer: not built.",
-      "composer composerContextUndo": "Chip removal is not undoable (the original restores a removed chip with Undo).",
-      "composer ComposerBanner": "The banner and its stack exist (composer_banners.rs) and carry the server update notice; the provider status and usage-limit notices are still separate panels, not banners of the stack.",
-      "composer ComposerBannerStack": "As ComposerBanner: the stack holds the server update banner only.",
-      "composer ComposerFeedback": "`/feedback` in a Codex thread's composer is built (thread_feedback.rs, provider.uploadFeedback) and says how it went with notices; the original's banner above the composer (feedbackBannerItem) and the two local rows of the exchange in the conversation are not drawn."
+      "composer ComposerBannerStack": "One Stack docks the plan badge, the feedback exchange, the usage-limit recovery and report, and the server update in the original's order. Not built: the stack's peeking of further notices behind the front one (hover, Show other notices), the exit transition on dismiss, and the goal and background-work strips (composer_panels), which stay their own panels.",
+      "message context mention": "The @file reference is sent as text and shown as text: this app's composer writes no mention context record, so the original's file chip (FileTagChip, with the file icon and a preview on click) is drawn only for messages that carry one, and those are shown as text here. The $skill chip is built.",
+      "composer composerContextUndo": "Not built: the original restores a removed chip with the editor's undo, because its chips are tokens inside the rich text editor and the removed file or annotation is retained for it (reconcileAttachmentContextReferences). This app's chips are a tray of their own, with no editor history to undo."
     },
     "pending": {
-      "timeline row html-render": "HtmlRenderTimelineRow (the t3 html_render tool result in a sandboxed frame): the Rust timeline shows the tool call only.",
       "timeline row mcp-app": "McpAppTimelineRow (MCP app frames): not built; see rpc mcpApps.*.",
       "message context element": "A picked page element of the Browser tab: the tab has no element picker (the webview's injected script does that in the original).",
       "message context preview-annotation": "A preview annotation: the Browser tab has no annotation tool (the webview's injected script does that in the original).",
       "composer ComposerCodeBlockLanguagePicker": "Rich text composer code blocks: not built.",
       "composer ComposerCodeBlockNodeView": "Rich text composer code blocks: not built.",
       "composer composer-rich-text": "The rich text composer (Tiptap, block Markdown): the Rust composer is a plain text box.",
-      "composer composerMentionDrag": "Dragging a file or a tree row into the composer (composerMentionDrag, workspaceFileDrop): not built."
+      "composer composerMentionDrag": "Dragging a file or a tree row into the composer (composerMentionDrag, workspaceFileDrop): not built. A tree row has to carry a custom drag type (application/x-t3code-composer-mention) and the composer read it on drop; Dioxus sends drag events to the desktop webview as serialized data, where a handler can neither set nor read a custom type, so it needs a page script delegating dragstart and drop, which has to be tried in a real window (none was opened this round). Files dropped from the system already attach (desktop_drop.rs)."
     },
     "omitted": {
       "composer composerEventScope": "DOM event scoping of the rich editor; the plain text box has no equivalent.",

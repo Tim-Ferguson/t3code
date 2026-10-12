@@ -244,6 +244,12 @@ pub(crate) fn open_pull_request(state: Store<UiModel>, thread_id: &str, target: 
     let key = key_of(&environment, Some(thread_id));
     edit(state, |model| model.panels.open_pull_request(&key, target));
 }
+/// Opens a page the conversation holds (an agent's HTML render) as a tab beside the thread.
+pub(crate) fn open_attachment(state: Store<UiModel>, thread_id: &str, attachment_id: &str, name: &str) {
+    let Some(environment) = state.destination().peek().as_ref().map(ToString::to_string) else { return };
+    let key = key_of(&environment, Some(thread_id));
+    edit(state, |model| model.panels.open_attachment(&key, attachment_id, name));
+}
 /// Shows a browser tab: the session's, or the empty one.
 pub(crate) fn open_preview(state: Store<UiModel>, environment: &str, thread: &str, tab: Option<&str>) {
     let key = key_of(environment, Some(thread));
@@ -420,6 +426,7 @@ pub(crate) fn reopen_closed(transport: &TransportHandle, state: Store<UiModel>) 
                 }
             }
             Surface::Device { target: None, .. } => model.panels.open(&key, Kind::Device),
+            Surface::Attachment { attachment_id, name } => model.panels.open_attachment(&key, attachment_id, name),
             // A terminal is never kept.
             Surface::Terminal { .. } => {}
         }
@@ -817,6 +824,7 @@ pub(crate) fn Shell(state: Store<UiModel>, transport: TransportHandle, environme
                         Some(thread_id) => rsx! { terminal_pane::Tab { key: "{terminal_id}", state, transport: transport.clone(), environment: environment_key.clone(), thread_id, terminal_id, cwd: cwd.clone() } },
                         None => rsx! {},
                     },
+                    Some(Surface::Attachment { attachment_id, name }) => rsx! { crate::html_render::PanelTab { key: "{attachment_id}", state, transport: transport.clone(), environment_key: environment_key.clone(), attachment_id, name } },
                     Some(surface @ Surface::Device { .. }) => match thread_id.clone() {
                         Some(thread_id) => rsx! { device_panel::Panel { key: "{surface.id()}", state, transport: transport.clone(), environment_key: environment_key.clone(), thread_id, surface } },
                         None => rsx! {},

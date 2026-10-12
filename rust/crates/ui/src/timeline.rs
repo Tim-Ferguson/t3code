@@ -62,7 +62,7 @@ pub(crate) fn TimelineItem(
         let presented = t3_client::user_message::present(&effective);
         return rsx! {article {class:"message user",
             Attribution {attribution:presented.attribution.clone(),state,transport:transport.clone()}
-            if !presented.text.is_empty() {Markdown {text:presented.text.clone()}}
+            if !presented.text.is_empty() {UserText {state,thread_id:source_thread_id.clone(),text:presented.text.clone()}}
             MessageAttachments {environment_key:environment_key.clone(),state,transport:transport.clone(),attachments:attachments.clone()}
             {edit}
         }};
@@ -71,7 +71,7 @@ pub(crate) fn TimelineItem(
         let presented = t3_client::user_message::present(&effective);
         return rsx! {article {class:"message user",
             Attribution {attribution:presented.attribution,state,transport:transport.clone()}
-            Markdown {text:presented.text}
+            UserText {state,thread_id:source_thread_id.clone(),text:presented.text}
             {edit}
         }};
     }
@@ -162,6 +162,22 @@ pub(crate) fn TimelineItem(
             }
         }
     }
+}
+
+/// The words of a sent message, where one that names a skill of the thread's provider is a chip (`SkillInlineText`). The skills are
+/// read apart from the row, so a change of configuration repaints only the messages that now read differently.
+#[component]
+fn UserText(state: Store<UiModel>, thread_id: String, text: String) -> Element {
+    let skills = use_memo(use_reactive((&thread_id,), move |(thread_id,)| {
+        let instance = state.shell().read().snapshot.as_ref().and_then(|snapshot| snapshot.threads.iter().find(|thread| thread.id.as_str() == thread_id)).map(|thread| thread.provider_instance_id.clone());
+        let field = state.typed_config();
+        let config = field.read();
+        let provider = instance.and_then(|instance| config.as_ref()?.providers.0.iter().find(|provider| provider.instance_id == instance));
+        provider
+            .map(|provider| provider.skills.iter().filter_map(|skill| t3_client::composer_menu::Skill::from_json(&serde_json::to_value(skill).ok()?)).map(|skill| (skill.name.clone(), skill.label())).collect::<Vec<_>>())
+            .unwrap_or_default()
+    }));
+    rsx! {Markdown {text, skills: skills.read().clone()}}
 }
 
 #[cfg(test)]

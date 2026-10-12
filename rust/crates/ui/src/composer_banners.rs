@@ -8,12 +8,18 @@ pub(crate) enum Variant {
     #[default]
     Default,
     Error,
+    Info,
+    Success,
+    Warning,
 }
 impl Variant {
     fn name(self) -> &'static str {
         match self {
             Self::Default => "default",
             Self::Error => "error",
+            Self::Info => "info",
+            Self::Success => "success",
+            Self::Warning => "warning",
         }
     }
 }

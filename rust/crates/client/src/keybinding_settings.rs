@@ -29,11 +29,12 @@ pub const WIRED_COMMANDS: &[&str] = &[
     "thread.jump.8",
     "thread.jump.9",
     // What `keys.rs` carries out beyond the first set: the terminal, the composer, the queue, usage, the theme editor,
-    // the commands a thread row's menu has, the tabbed panel and its browser, and the page's history. The original's thread
-    // details and host commands have no feature here, so they stay out.
+    // the commands a thread row's menu has, the tabbed panel and its browser, the thread details card, and the page's history. The
+    // original's host commands have no feature here, so they stay out.
     "navigation.back",
     "navigation.forward",
     "rightPanel.toggle",
+    "threadPanel.toggle",
     "preview.toggle",
     "preview.refresh",
     "preview.focusUrl",
@@ -337,13 +338,14 @@ mod tests {
         assert!(rows.iter().all(|row| is_wired(&row.command)));
         assert!(rows.iter().any(|row| row.command == "diff.toggle" && row.key == "mod+d" && row.when == "!terminalFocus" && row.source == Source::Default));
         assert!(rows.iter().any(|row| row.command == "preview.toggle" && row.key == "mod+shift+j") && rows.iter().any(|row| row.command == "preview.refresh" && row.when == "previewFocus"));
-        assert!(!rows.iter().any(|row| row.command == "threadPanel.toggle"));
+        // Wired, but the original binds it to no key, so there is no rule to list until the reader binds one.
+        assert!(is_wired("threadPanel.toggle") && !rows.iter().any(|row| row.command == "threadPanel.toggle"));
         assert_eq!(rows.len() + hidden_count(&rules), rules.len());
         let groups = group_rows(rows);
         let titles: Vec<_> = groups.iter().map(|group| group.title).collect();
         // The original's usage, history and reopen commands belong to no named group, so they are listed under Other, as there.
         assert_eq!(titles, ["Navigation", "Threads", "Composer", "Terminal", "Preview & diff", "Appearance", "Other"]);
-        assert!(groups.last().unwrap().rows.iter().all(|row| ["usage.", "navigation.", "view."].iter().any(|prefix| row.command.starts_with(prefix))));
+        assert!(groups.last().unwrap().rows.iter().all(|row| ["usage.", "navigation.", "view.", "threadPanel."].iter().any(|prefix| row.command.starts_with(prefix))));
         assert!(groups.last().unwrap().rows.iter().any(|row| row.command == "view.reopenClosed") && groups[0].rows.iter().any(|row| row.command == "rightPanel.toggle"));
     }
 

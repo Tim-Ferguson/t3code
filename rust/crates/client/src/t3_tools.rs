@@ -204,6 +204,15 @@ pub fn output_task_id(output: &Value) -> Option<String> {
     let id = read_result(output, 0).data?.get("taskId")?.as_str()?.to_owned();
     (id.encode_utf16().count() <= 256 && !id.trim().is_empty()).then_some(id)
 }
+/// `compactDynamicToolOutput(output).htmlRender` before it is read: the page reference a successful `html_render` call returned
+/// (`htmlRenderFromToolItem` gives none for a result that says it failed).
+pub fn output_html_render(output: &Value) -> Option<Value> {
+    let result = read_result(output, 0);
+    if result.failed {
+        return None;
+    }
+    result.data?.get("htmlRender").cloned()
+}
 /// `t3ToolResultIndicatesFailure`: MCP errors can come back as data from a call the provider completed.
 pub fn result_indicates_failure(output: &Value) -> bool {
     read_result(output, 0).failed

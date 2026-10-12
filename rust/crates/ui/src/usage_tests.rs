@@ -62,10 +62,14 @@ fn stamp(minutes: i64) -> String {
 }
 /// One Codex session of one model: 1,000,000 input tokens (400,000 of them cached) and 50,000 output.
 fn write_codex_history(fixture: &Fixture) {
+    write_codex_history_of(fixture, "gpt-5");
+}
+/// The same session on another model, which the rate table may not price.
+fn write_codex_history_of(fixture: &Fixture, model: &str) {
     let root = fixture.workspace.parent().unwrap();
     let lines = [
         json!({"type":"session_meta","timestamp":stamp(15),"payload":{"id":"codex-session"}}),
-        json!({"type":"turn_context","timestamp":stamp(14),"payload":{"model":"gpt-5"}}),
+        json!({"type":"turn_context","timestamp":stamp(14),"payload":{"model":model}}),
         json!({"type":"event_msg","timestamp":stamp(13),"payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":1_000_000,"cached_input_tokens":400_000,"output_tokens":50_000,"reasoning_output_tokens":30_000}}}}),
     ];
     let path = root.join("codex-home/sessions/2026/10/09/rollout-1.jsonl");
@@ -332,5 +336,129 @@ async fn a_lost_connection_marks_what_is_shown_out_of_date_and_stops_every_write
     assert!(rendered_text(&dom).contains("$1.30"), "the last result stays on screen");
     assert!(disabled(&dom, "Refresh usage"), "nothing can be read until the connection returns");
     assert!(state.usage().peek().error.is_none() || !rendered_text(&dom).contains("Scanning"));
+    fixture.finish(dom).await;
+}
+
+const WRITER: [AuthEnvironmentScope; 4] = [AuthEnvironmentScope::OrchestrationRead, AuthEnvironmentScope::OrchestrationOperate, AuthEnvironmentScope::DiagnosticsRead, AuthEnvironmentScope::SettingsWrite];
+
+fn saved_prices(state: Store<UiModel>) -> serde_json::Value {
+    state.config().peek()["settings"]["usagePriceOverrides"].clone()
+}
+fn saved_aliases(state: Store<UiModel>) -> serde_json::Value {
+    state.config().peek()["settings"]["usageModelAliases"].clone()
+}
+
+/// Custom prices and mappings are staged in the table, validated as they are typed, saved together in one patch the server stores,
+/// and reset to automatic by their row.
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn custom_prices_and_mappings_are_staged_validated_saved_and_reset_from_the_editor() {
+    use crate::runtime::transport_tests::input_control;
+    let _ = rates();
+    let fixture = Fixture::start(false).await;
+    write_codex_history(&fixture);
+    let (mut dom, _props, state) = open(&fixture, &WRITER).await;
+    click_control(&mut dom, "Cost");
+    loaded_days(&mut dom, state, 30).await;
+    click_control(&mut dom, "Model prices");
+    until(&mut dom, "the editor", |dom| control(dom, "Add model price").is_some()).await;
+    assert!(rendered_text(&dom).contains("No custom prices or mappings. Add a row to set one."));
+    assert!(disabled(&dom, "Save changes"), "nothing is staged");
+
+    // A row with a model and only one of the two required rates cannot be saved, and says which is missing and where.
+    click_control(&mut dom, "Add model price");
+    input_control(&mut dom, "New model ID", "gpt-9");
+    input_control(&mut dom, "Input price for gpt-9", "2.5");
+    assert!(rendered_text(&dom).contains("Output is required on"), "{}", rendered_text(&dom));
+    assert!(disabled(&dom, "Save changes"));
+    input_control(&mut dom, "Output price for gpt-9", "-1");
+    assert!(rendered_text(&dom).contains("Use non-negative numbers for prices."));
+    input_control(&mut dom, "Output price for gpt-9", "10");
+    assert!(!disabled(&dom, "Save changes") && rendered_text(&dom).contains("Changes apply to"), "{}", rendered_text(&dom));
+    // Discarding returns to the saved table.
+    click_control(&mut dom, "Discard changes");
+    assert!(control(&dom, "New model ID").is_none() && disabled(&dom, "Save changes"));
+
+    // A price is saved, and its row comes from the saved settings from then on.
+    click_control(&mut dom, "Add model price");
+    input_control(&mut dom, "New model ID", "gpt-9");
+    input_control(&mut dom, "Input price for gpt-9", "2.5");
+    input_control(&mut dom, "Output price for gpt-9", "10");
+    click_control(&mut dom, "Save changes");
+    until(&mut dom, "the server to hold the price", |_| saved_prices(state)["gpt-9"].is_object()).await;
+    assert_eq!(saved_prices(state)["gpt-9"], json!({"inputCostPerMillionTokens":2.5,"outputCostPerMillionTokens":10.0}));
+    until(&mut dom, "the saved note", |dom| rendered_text(dom).contains("Saved")).await;
+    assert!(control(&dom, "Reset price for gpt-9 to automatic").is_some() && control(&dom, "New model ID").is_none());
+    assert_eq!(control_attribute(&dom, "Input price for gpt-9", "value").and_then(|(_, value)| value).as_deref(), Some("2.5"));
+
+    // A mapping counts a model's usage as another's, and saving it drops the mapped model's own price.
+    click_control(&mut dom, "Add model price");
+    input_control(&mut dom, "New model ID", "gpt-9-preview");
+    input_control(&mut dom, "Map gpt-9-preview to model", "gpt-9");
+    assert!(rendered_text(&dom).contains("Counted as gpt-9"));
+    click_control(&mut dom, "Save changes");
+    until(&mut dom, "the server to hold the mapping", |_| saved_aliases(state)["gpt-9-preview"] == "gpt-9").await;
+    assert!(saved_prices(state)["gpt-9"].is_object(), "the target keeps its price");
+    until(&mut dom, "the mapped row", |dom| control(dom, "Reset price for gpt-9-preview to automatic").is_some()).await;
+
+    // A model that already has a row cannot be added again.
+    click_control(&mut dom, "Add model price");
+    input_control(&mut dom, "New model ID", "gpt-9");
+    assert!(rendered_text(&dom).contains("This model already has a row. Edit its prices there."));
+    click_control(&mut dom, "Remove new model");
+
+    // Resetting a row removes the custom price once saved, and can be undone before.
+    click_control(&mut dom, "Reset price for gpt-9 to automatic");
+    assert!(rendered_text(&dom).contains("Automatic pricing after saving"));
+    click_control(&mut dom, "Undo reset for gpt-9");
+    assert!(!rendered_text(&dom).contains("Automatic pricing after saving") && disabled(&dom, "Save changes"));
+    click_control(&mut dom, "Reset price for gpt-9 to automatic");
+    click_control(&mut dom, "Save changes");
+    until(&mut dom, "the price to be gone", |_| saved_prices(state).get("gpt-9").is_none()).await;
+    fixture.finish(dom).await;
+}
+
+/// A reader can look but not save: the save is refused with the reason, and the edits are kept for a retry.
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn a_connection_without_the_settings_grant_cannot_save_prices_and_keeps_the_edits() {
+    use crate::runtime::transport_tests::input_control;
+    let _ = rates();
+    let fixture = Fixture::start(false).await;
+    write_codex_history(&fixture);
+    let (mut dom, _props, state) = open(&fixture, &SCOPES).await;
+    click_control(&mut dom, "Model prices");
+    until(&mut dom, "the editor", |dom| control(dom, "Add model price").is_some()).await;
+    assert!(rendered_text(&dom).contains("Read-only access"));
+    click_control(&mut dom, "Add model price");
+    input_control(&mut dom, "New model ID", "gpt-9");
+    input_control(&mut dom, "Input price for gpt-9", "1");
+    input_control(&mut dom, "Output price for gpt-9", "2");
+    click_control(&mut dom, "Save changes");
+    until(&mut dom, "the refusal", |dom| rendered_text(dom).contains("Not saved \u{b7} Read-only access")).await;
+    assert!(control(&dom, "Retry failed saves").is_some() && disabled(&dom, "Input price for gpt-9"), "the table is locked until the failure is dealt with");
+    assert!(saved_prices(state).get("gpt-9").is_none());
+    click_control(&mut dom, "Discard pending changes");
+    assert!(control(&dom, "New model ID").is_none() && !rendered_text(&dom).contains("Not saved"));
+    fixture.finish(dom).await;
+}
+
+/// A model with usage and no known price offers to be priced from its own dialog, in a row already started for it.
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn a_model_without_a_price_offers_set_price_with_its_row_started() {
+    let _ = rates();
+    let fixture = Fixture::start(false).await;
+    write_codex_history_of(&fixture, "mystery-model");
+    let (mut dom, _props, state) = open(&fixture, &WRITER).await;
+    click_control(&mut dom, "Cost");
+    loaded_days(&mut dom, state, 30).await;
+    wait_for_rendered_text(&mut dom, "mystery-model").await;
+    click_control(&mut dom, "Open mystery-model");
+    until(&mut dom, "the model's dialog", |dom| control(dom, "Set price").is_some()).await;
+    click_control(&mut dom, "Set price");
+    until(&mut dom, "the editor", |dom| control(dom, "Input price for mystery-model").is_some()).await;
+    assert!(control(&dom, "Set price").is_none(), "the model's dialog closed");
+    assert_eq!(control_attribute(&dom, "New model ID", "value").and_then(|(_, value)| value).as_deref(), Some("mystery-model"));
     fixture.finish(dom).await;
 }

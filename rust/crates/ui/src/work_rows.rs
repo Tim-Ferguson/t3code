@@ -16,7 +16,7 @@ use std::collections::BTreeSet;
 use t3_client::{
     rollback::Target,
     timeline_items as words,
-    timeline_rows::{Entry, GroupAction, Row, SummaryKind, ToolIcon},
+    timeline_rows::{Entry, GroupAction, Kind, Row, SummaryKind, ToolIcon},
 };
 
 /// Which folds and groups the reader has opened. They belong to the open conversation and are gone
@@ -215,6 +215,17 @@ impl Rows<'_> {
                 active_run:if item_cards::in_progress(&row["item"]) { self.active_run_id.map(str::to_owned) } else { None },visibility:row["visibility"].as_str().unwrap_or("local").to_owned() }
         }}
     }
+    /// A page an agent published (`HtmlRenderTimelineRow`): its frame, in a row of its own.
+    fn page(&self, entry: usize, page: &t3_client::html_render::Reference) -> Element {
+        let marker = self.unique(format!("html-render:{}", self.key(&self.items[self.entries[entry].row])));
+        let (state, thread_id) = (self.state, self.thread_id.to_owned());
+        let (attachment_id, name) = (page.attachment_id.clone(), t3_client::html_render::file_name(&page.title));
+        rsx! { div { key:"{marker}",class:"html-render-row","data-timeline-row":"{marker}",
+            // A recycled row must not keep another page's frozen frame.
+            crate::html_render::Frame { key:"{page.attachment_id}",state,transport:self.transport.clone(),environment_key:self.environment_key.to_owned(),page:page.clone(),
+                on_open:move |_| crate::right_panel::open_attachment(state,&thread_id,&attachment_id,&name) }
+        }}
+    }
     fn members(&self, group: &str, members: &[usize]) -> Element {
         let marker = self.unique(format!("members:{group}"));
         let limit = self.disclosures.shown.read().get(group).copied().unwrap_or(MEMBER_PAGE).max(MEMBER_PAGE);
@@ -237,6 +248,10 @@ impl Rows<'_> {
         self.markers.borrow_mut().clear();
         for row in rows {
             let element = match row {
+                Row::Entry { entry } if matches!(self.entries[*entry].kind, Kind::HtmlRender { .. }) => {
+                    let Kind::HtmlRender { page, .. } = &self.entries[*entry].kind else { unreachable!() };
+                    self.page(*entry, page)
+                }
                 Row::Entry { entry } | Row::Single { entry, .. } | Row::Compaction { entry, .. } => self.item(self.entries[*entry].row, ""),
                 Row::Item { row } => self.item(*row, ""),
                 Row::Created { entry } => self.item(self.entries[*entry].row, "summary:"),

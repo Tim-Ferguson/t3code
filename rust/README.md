@@ -521,3 +521,7 @@ Integrations holds the new tab's zoom and appearance (applied with `preview.adju
 The Browser tab's tests run against the real `ServerBrowser` on the scripted Chrome (`preview_real_tests.rs`); `tools/browser_fixture/browser_check.mjs` is the headless pass over the panel tabs and these settings.
 
 Not built: importing cookies from other browsers, recording, the floating preview, annotations and screenshots of the tab, MCP app frames, the licenses page, the process tree.
+
+## HTML renders in the timeline, usage prices, composer banners
+
+Agent HTML renders (`html_render`) appear in the timeline as sandboxed frames (`allow-scripts allow-forms`, as the original) in the app theme, fitted to the page's reported height and openable as a right-panel tab. The Usage page edits custom model prices and mappings (one `server.updateSettings` patch per save). A thread-details card (`threadPanel.toggle`, header toggle) shows the workspace and the thread's scheduled tasks. The composer banner stack carries a plan-progress badge, `/feedback` exchange banners (with local rows), usage-limit recovery and the update notice. A `$skill` in a sent message is a chip. Still open: several models for one message, `@file` chips, dropping a tree row into the composer, a tab screenshot button, and the rich-text composer.

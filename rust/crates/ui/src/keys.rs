@@ -216,6 +216,10 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
             if chat && (open.is_some() || state.selected_project().read().is_some()) {
                 set.insert("rightPanel.toggle".into());
             }
+            // The details card belongs to a thread.
+            if chat && open.is_some() {
+                set.insert("threadPanel.toggle".into());
+            }
             if chat && crate::right_panel::is_open(state) {
                 set.extend(["rightPanel.new", "rightPanel.toggleMaximized"].map(String::from));
             }
@@ -526,6 +530,7 @@ impl Runner {
                 let _ = document::eval("window.history.forward();");
             }
             "rightPanel.toggle" => crate::right_panel::toggle_panel(state),
+            "threadPanel.toggle" => crate::thread_details::toggle(state),
             "rightPanel.new" => crate::right_panel::open_add_menu(state),
             "rightPanel.toggleMaximized" => crate::right_panel::toggle_maximized(state),
             "rightPanel.close" => crate::right_panel::close_shown(state),
