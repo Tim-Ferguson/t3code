@@ -512,10 +512,11 @@ pub fn read_channel(path: &std::path::Path) -> Option<Channel> {
     serde_json::from_value(value["updateChannel"].clone()).ok()
 }
 pub fn write_channel(path: &std::path::Path, channel: Channel) -> std::io::Result<()> {
-    if let Some(directory) = path.parent() {
-        std::fs::create_dir_all(directory)?;
-    }
-    std::fs::write(path, json!({"updateChannel":channel,"updateChannelConfiguredByUser":true}).to_string())
+    // The document also holds the other settings (`settings`): they stay as they are.
+    crate::settings::edit(path, |document| {
+        document.insert("updateChannel".into(), json!(channel));
+        document.insert("updateChannelConfiguredByUser".into(), json!(true));
+    })
 }
 /// The channel in force: the choice, else the version's default.
 pub fn channel_in_force(path: &std::path::Path, app_version: &str) -> Channel {

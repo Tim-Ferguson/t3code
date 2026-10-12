@@ -362,14 +362,14 @@ fn Share(label: String, credential: String, origin: String, advertised: Advertis
     }
 }
 
-async fn read_default_key() -> Option<String> {
+pub(crate) async fn read_default_key() -> Option<String> {
     let key = serde_json::to_string(logic::UI_STATE_KEY).expect("key");
     let raw = document::eval(&format!("try{{return window.localStorage.getItem({key});}}catch{{return null;}}")).join::<Option<String>>().await.ok().flatten();
     logic::stored_default_key(raw.as_deref())
 }
 
 /// Saves the endpoint as the default, in the record the original's interface state shares.
-fn write_default_key(preference: &str) {
+pub(crate) fn write_default_key(preference: &str) {
     let (key, preference) = (serde_json::to_string(logic::UI_STATE_KEY).expect("key"), serde_json::to_string(preference).expect("preference"));
     let _ = document::eval(&format!("try{{const raw=window.localStorage.getItem({key});let state={{}};try{{const parsed=JSON.parse(raw);if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed))state=parsed;}}catch{{}}state.defaultAdvertisedEndpointKey={preference};window.localStorage.setItem({key},JSON.stringify(state));}}catch{{}}"));
 }

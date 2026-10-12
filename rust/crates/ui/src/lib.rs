@@ -49,6 +49,8 @@ mod thread_selection;
 mod access_page;
 mod acp_registry_step;
 mod connect_page;
+mod desktop_drop;
+mod desktop_network;
 mod import_notice;
 mod notifications;
 mod project_search;
@@ -543,6 +545,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                             p { class: "muted", "{status_label}" }
                             environment_icon::Picker { state, transport: transport.clone() }
                             connect_page::Section { state, transport: transport.clone() }
+                            desktop_network::Section { state, transport: transport.clone() }
                             access_page::Authorized { state, transport: transport.clone() }
                             ssh_environments::Section { state, transport: transport.clone() }
                             load_balancing::Section { state }

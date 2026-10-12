@@ -18,6 +18,8 @@ ring = "0.17"
 t3-remote = { path = "../remote" }
 t3-client.workspace = true
 async-trait = "0.1"
+# The network interfaces of this machine (`exposure`).
+if-addrs.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = [
   "process",

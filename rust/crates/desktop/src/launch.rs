@@ -118,16 +118,21 @@ impl ServerConfig {
     }
 
     /// The one line the server reads from its bootstrap descriptor (`DesktopBackendBootstrap`). Provider
-    /// credentials, telemetry and Tailscale are not part of it: this app asks for none of them.
+    /// credentials and telemetry are not part of it: this app asks for none of them.
     pub fn bootstrap_line(&self, credential: &str) -> String {
+        self.bootstrap_line_with(credential, None)
+    }
+
+    /// As `bootstrap_line`, with Tailscale Serve asked for on `tailscale_serve_port` when there is one.
+    pub fn bootstrap_line_with(&self, credential: &str, tailscale_serve_port: Option<u16>) -> String {
         let mut line = serde_json::json!({
             "mode": "desktop",
             "noBrowser": true,
             "port": self.port,
             "host": self.host,
             "desktopBootstrapToken": credential,
-            "tailscaleServeEnabled": false,
-            "tailscaleServePort": 443,
+            "tailscaleServeEnabled": tailscale_serve_port.is_some(),
+            "tailscaleServePort": tailscale_serve_port.unwrap_or(443),
         })
         .to_string();
         line.push('\n');
@@ -259,16 +264,24 @@ pub struct ServerLauncher {
     ready_line_grace: Duration,
     /// What the server's requests over the control channel are answered with; none starts the server without the channel.
     answers: Option<crate::control_channel::Answers>,
+    /// Where the server listens and whether Tailscale Serve is asked for, read at every start; none keeps `config.host` and no Serve.
+    binding: Option<std::sync::Arc<crate::exposure::Binding>>,
 }
 
 impl ServerLauncher {
     pub fn new(config: ServerConfig) -> Self {
-        Self { config, log_start: 0, ready: None, ready_line_grace: READY_LINE_GRACE, answers: None }
+        Self { config, log_start: 0, ready: None, ready_line_grace: READY_LINE_GRACE, answers: None, binding: None }
     }
 
     /// Starts the server with the control channel, and answers what it asks over it as `answers` say.
     pub fn with_control_channel(mut self, answers: crate::control_channel::Answers) -> Self {
         self.answers = Some(answers);
+        self
+    }
+
+    /// Starts the server where `binding` says at each start, so that a change made while the app runs shows at the next one.
+    pub fn with_binding(mut self, binding: std::sync::Arc<crate::exposure::Binding>) -> Self {
+        self.binding = Some(binding);
         self
     }
 
@@ -302,6 +315,9 @@ impl Launcher for ServerLauncher {
 
     fn launch(&mut self, _attempt: u32) -> Result<Launched<ChildProcess>, String> {
         let credential = new_credential();
+        // What this start is told: the address the window dials stays the loopback one whatever the server listens on.
+        let bound = self.binding.as_ref().map_or_else(|| crate::exposure::Bound { host: self.config.host.clone(), tailscale_serve_port: None }, |binding| binding.get());
+        let config = ServerConfig { host: bound.host.clone(), ..self.config.clone() };
         std::fs::create_dir_all(&self.config.state_dir).map_err(|error| format!("Cannot create {}: {error}", self.config.state_dir.display()))?;
         if let Some(directory) = self.config.log_file.parent() {
             std::fs::create_dir_all(directory).map_err(|error| format!("Cannot create {}: {error}", directory.display()))?;
@@ -311,7 +327,7 @@ impl Launcher for ServerLauncher {
         let mut command = tokio::process::Command::new(&self.config.binary);
         // Standard output is read for the ready line and copied to the log; standard error is the same pipe (below), so
         // the log keeps the order in which the server wrote.
-        command.args(self.config.args()).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::null()).kill_on_drop(false);
+        command.args(config.args()).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::null()).kill_on_drop(false);
         // Provider tools are found the way the person's own shell finds them, not through the server's
         // settings of an earlier run.
         command.env_remove("T3CODE_HOME").env_remove("T3CODE_PORT").env_remove("T3CODE_HOST").env_remove("T3CODE_MODE").env_remove("T3CODE_BOOTSTRAP_FD");
@@ -319,7 +335,7 @@ impl Launcher for ServerLauncher {
         if let Some(login_shell) = &self.config.login_shell {
             command.envs(login_shell.get());
         }
-        let line = self.config.bootstrap_line(&credential);
+        let line = config.bootstrap_line_with(&credential, bound.tailscale_serve_port);
         #[cfg(unix)]
         {
             use std::io::Write;
@@ -581,6 +597,27 @@ mod tests {
         process.wait().await;
         assert_eq!(second.last_words(), Some("to stderr".into()));
         assert!(std::fs::read_to_string(&second.config.log_file).unwrap().matches("envelope:").count() == 2);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn each_start_listens_where_the_binding_says_then_and_the_window_still_dials_loopback() {
+        use crate::exposure::{Binding, Bound};
+        let directory = tempfile::tempdir().unwrap();
+        let config = stand_in(directory.path(), "read line <&3\necho \"envelope: $line\"\necho \"args: $*\"");
+        let binding = Binding::new(Bound { host: "127.0.0.1".into(), tailscale_serve_port: None });
+        let mut launcher = ServerLauncher::new(config.clone()).with_binding(binding.clone());
+        let Launched { mut process, .. } = launcher.launch(1).unwrap();
+        process.wait().await;
+        // The person opens the network and Tailscale Serve between two starts.
+        binding.set(Bound { host: "0.0.0.0".into(), tailscale_serve_port: Some(8443) });
+        let Launched { mut process, address, .. } = launcher.launch(2).unwrap();
+        process.wait().await;
+        assert_eq!(address, "http://127.0.0.1:3779", "the address the window dials is the loopback one");
+        let log = std::fs::read_to_string(&config.log_file).unwrap();
+        let (first, second) = log.split_once("envelope:").unwrap().1.split_once("envelope:").unwrap();
+        assert!(first.contains("--host 127.0.0.1") && first.contains("\"tailscaleServeEnabled\":false"), "{first}");
+        assert!(second.contains("--host 0.0.0.0") && second.contains("\"tailscaleServeEnabled\":true") && second.contains("\"tailscaleServePort\":8443") && second.contains("\"host\":\"0.0.0.0\""), "{second}");
     }
 
     #[cfg(unix)]

@@ -272,6 +272,50 @@
       "cancelProviderAuthCallback": {
         "probe": "provider_auth_local.rs::LocalSignIn",
         "reason": "as receiveProviderAuthCallback: provider_auth_callback::cancel, on Stop waiting and when the section goes"
+      },
+      "getServerExposureState": {
+        "probe": "desktop_shell.rs::fn exposure\\(&self\\)",
+        "reason": "desktop_shell::ShellControl reads t3_desktop::exposure::Exposure::state; the Connections page shows it (desktop_network.rs \"Network access\")"
+      },
+      "setServerExposureMode": {
+        "probe": "desktop_shell.rs::fn set_network_accessible",
+        "reason": "Exposure::set_mode saves the choice and the server starts again listening where it says (ServerLauncher::with_binding); the switch asks first"
+      },
+      "setTailscaleServeEnabled": {
+        "probe": "desktop_shell.rs::fn set_tailscale_serve",
+        "reason": "Exposure::set_tailscale_serve; the server is started with tailscaleServeEnabled/Port in its bootstrap and runs Serve itself; the Tailscale HTTPS row sets up and disables it"
+      },
+      "getAdvertisedEndpoints": {
+        "probe": "desktop_shell.rs::fn endpoints\\(&self\\)",
+        "reason": "Exposure::advertised_endpoints: this machine, the local network, the addresses the person set and Tailscale (the program is asked only once the network or Serve is open); the share panel lists them as the original does"
+      },
+      "getLocalEnvironmentEnabled": {
+        "probe": "desktop_shell.rs::fn local_environment_enabled",
+        "reason": "desktop_shell::Backend::Off: with the setting off this app starts no server; the Connections page shows the switch"
+      },
+      "setLocalEnvironmentEnabled": {
+        "probe": "desktop_shell.rs::fn set_local_environment_enabled",
+        "reason": "saved in the app settings file, then the app starts again (quit_app with relaunch)"
+      },
+      "getWindowFullscreenState": {
+        "probe": "window_events.rs::fn fullscreen_script",
+        "reason": "the shell tells the page (data-window-fullscreen on the root) and the header gives the traffic lights' room back"
+      },
+      "onWindowFullscreenStateChange": {
+        "probe": "window_events.rs::fn fullscreen_script",
+        "reason": "as getWindowFullscreenState: told when the window enters or leaves full screen (window_events::Watch)"
+      },
+      "onNotificationBadgeClear": {
+        "probe": "window_events.rs::FOCUS_SCRIPT",
+        "reason": "a window that comes to the front clears the dock badge and tells the page, which marks the notifications seen (window_events::Watch)"
+      },
+      "getAppBranding": {
+        "probe": "desktop_shell.rs::branding::resolve",
+        "reason": "t3_desktop::branding: the window title, the menu and the About panel carry \"T3 Code (<channel>)\"; the channel is t3_client::stage::app_stage_label"
+      },
+      "getPathForFile": {
+        "probe": "desktop_drop.rs::fn split",
+        "reason": "the desktop window gives the path of each dropped item (FileData::path); a dropped folder becomes a link in the prompt of a local server's composer, files upload"
       }
     },
     "partial": {
@@ -280,8 +324,7 @@
       "checkForUpdate": "The About row and menu item exist and say updates are unavailable; nothing is checked.",
       "downloadUpdate": "No update feed: the pill and button never reach the downloadable state.",
       "installUpdate": "No update feed: never reaches the installable state.",
-      "setUpdateChannel": "The track choice is kept (updates::channel_in_force) for the day a feed exists; it changes nothing now.",
-      "getAdvertisedEndpoints": "desktop_shell::advertised_endpoints now uses t3_desktop::network::app_endpoints: This machine plus the HTTPS addresses in T3CODE_DESKTOP_HTTPS_ENDPOINTS; the local network and Tailscale endpoints need a wider bind or Tailscale Serve, which this app does not start."
+      "setUpdateChannel": "The track choice is kept (updates::channel_in_force) for the day a feed exists; it changes nothing now."
     },
     "pending": {
       "preview.setForwardedShortcuts": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
@@ -323,25 +366,14 @@
       "preview.*.onFrame": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
       "preview.onStateChange": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
       "preview.onPointerEvent": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "onNotificationBadgeClear": "The main process tells the page to clear the badge when the window is focused; the Rust badge follows the page's own unread count only.",
-      "getPathForFile": "Dropped files give no absolute path (WebView File objects have none): dropping a folder to add a project, and dropping a file to attach by path, are not built; file drops upload their bytes.",
-      "getAppBranding": "The app name of the build (the window title stays fixed). The stage label is not asked of the shell: t3_client::stage::app_stage_label derives it (a debug build is Dev, a nightly version Nightly, else Alpha) for the environment mark.",
-      "getSystemLocale": "The 'System default' time format reads the page's locale; the OS locale is not asked.",
-      "onTrackpadScrollEnd": "Only the device viewport uses it; no device panel.",
-      "getLocalEnvironmentEnabled": "The Local environment switch (settings 'local-environment'): not built.",
-      "setLocalEnvironmentEnabled": "As getLocalEnvironmentEnabled.",
-      "getServerExposureState": "Network access: the server this app starts listens on loopback only (t3_desktop::network has the logic, not wired).",
-      "setServerExposureMode": "As getServerExposureState.",
-      "setTailscaleServeEnabled": "Tailscale Serve switch of the Connections page: not wired.",
-      "pickProjectFavicon": "Choosing an image for a project's icon (ProjectFaviconPickerDialog): not built.",
-      "checkSystemPermission": "Reading macOS permission state for the Integrations rows: no Integrations page. Notification permission is asked in the webview (notifications.rs).",
-      "openSystemSettings": "As checkSystemPermission.",
-      "probeRemoteEditors": "Opening files in an editor on a remote SSH machine (remoteOpen.ts): not built.",
-      "getWindowFullscreenState": "The page's traffic-light inset when fullscreen: the Rust header does not adapt.",
-      "onWindowFullscreenStateChange": "As getWindowFullscreenState.",
-      "appActivation.setReady": "Desktop app activation socket (`t3 app`): the server's `app` command is not ported either (README).",
-      "appActivation.complete": "Desktop app activation socket (`t3 app`): the server's `app` command is not ported either (README).",
-      "appActivation.onRequest": "Desktop app activation socket (`t3 app`): the server's `app` command is not ported either (README)."
+      "onTrackpadScrollEnd": "Only the device viewport uses it, and the device panel is the other agent's work; tao reports the end of a trackpad scroll (MouseWheel phase Ended) only for events its own view receives, which the web view takes, so it needs the panel to be tried.",
+      "pickProjectFavicon": "Choosing an image for a project's icon (ProjectFaviconPickerDialog): the Projects page has no icon row, and t3-contracts' Project carries neither faviconPath nor projectIcon to show or reset the choice (t3-contracts is not part of this work).",
+      "checkSystemPermission": "Only the Integrations page's Safari cookie import reads it (full-disk-access), which belongs to the preview browser; no Integrations page here.",
+      "openSystemSettings": "As checkSystemPermission: its callers are the Safari import row and the local API's shell.openSystemSettings, neither built.",
+      "probeRemoteEditors": "Opening a file on a remote machine in a local editor (remoteOpen.ts) is not built: open_in.rs offers the server's editors only. It needs the remote-link mode (host from the server's remoteOpenTargets or the ssh alias, buildRemoteOpenUrl, then open_external) and this probe of the editors installed here (resolveEditorCommand).",
+      "appActivation.setReady": "Desktop app activation socket (`t3 app`): needs the server's `app` command (not ported, README) to ask it, a socket with the original's ownership checks (DesktopAppActivation.ts), and the page opening the project and thread (DesktopAppActivationCoordinator).",
+      "appActivation.complete": "Desktop app activation socket (`t3 app`): needs the server's `app` command (not ported, README) to ask it, a socket with the original's ownership checks (DesktopAppActivation.ts), and the page opening the project and thread (DesktopAppActivationCoordinator).",
+      "appActivation.onRequest": "Desktop app activation socket (`t3 app`): needs the server's `app` command (not ported, README) to ask it, a socket with the original's ownership checks (DesktopAppActivation.ts), and the page opening the project and thread (DesktopAppActivationCoordinator)."
     },
     "omitted": {
       "requestSnapShotPermissions": "SnapShots: Electron-only native screen capture with no Rust counterpart planned.",
@@ -363,7 +395,8 @@
       "getWslState": "WSL (Windows only): the server cannot be started on Windows by this app yet.",
       "fetchSshSessionState": "No caller in the original web app.",
       "issueSshWebSocketTicket": "No caller in the original web app.",
-      "clearConnectionCatalog": "No caller in the original web app."
+      "clearConnectionCatalog": "No caller in the original web app.",
+      "getSystemLocale": "Electron pins Intl and app.getLocale() to en-US (ElectronApp.ts systemLocale); the Dioxus window is the system web view, whose Intl default is the OS locale already."
     }
   },
   "surface": {

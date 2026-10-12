@@ -16,16 +16,22 @@ use dioxus::{
 use std::{cell::{Cell, RefCell}, path::PathBuf, rc::Rc, sync::Arc, time::Duration};
 use t3_client::{connection::ConnectionStatus, themes::Mode};
 use t3_desktop::{
+    branding,
+    exposure::{self, Exposure, SystemMachine, SystemTailscale},
     launch::{self, AppDirs, ServerConfig, ServerLauncher},
     menu::{self, Action, Entry, Platform, Role},
     quit_hold::{self, QuitHold},
     supervisor::{Handle, ServerState, Timing},
     url::safe_external_url,
+    window_events,
     window_state::{self, Bounds, Debounce, Initial, Observed, Tracker, WindowState},
 };
 
-/// The window's title, whatever the page says (`page-title-updated` in the original).
-const TITLE: &str = "T3 Code";
+/// The window's title, whatever the page says (`page-title-updated` in the original): the name of this build with its channel
+/// (`getAppBranding`; the channel is `t3_client::stage::app_stage_label`).
+fn title() -> String {
+    branding::resolve(t3_client::stage::app_stage_label()).display_name
+}
 
 /// Where the UI's server comes from.
 #[derive(Clone)]
@@ -36,6 +42,8 @@ pub(crate) enum Backend {
     Supervised(Handle),
     /// This app would start one but cannot; the person is told why.
     Unavailable(String),
+    /// The person turned the local environment off: this app starts none (`localEnvironmentEnabled`).
+    Off,
 }
 
 /// Handed to the UI at launch.
@@ -45,15 +53,23 @@ pub(crate) struct Shell {
     backend: Backend,
     /// SSH environments (`DesktopSshEnvironment`); none when the runtime for it cannot be made.
     ssh: Option<t3_desktop::ssh::Ssh>,
+    /// Where the server this app started listens; none without one.
+    exposure: Option<Arc<Exposure>>,
+    /// Whether the local environment was on when the app started (`getLocalEnvironmentEnabled`).
+    local_environment: bool,
 }
 
 fn env(name: &str) -> Option<String> {
     std::env::var(name).ok()
 }
 
-fn start_backend(dirs: &AppDirs) -> Backend {
+fn start_backend(dirs: &AppDirs) -> (Backend, Option<Arc<Exposure>>) {
     if env("T3_SERVER_URL").is_some_and(|url| !url.trim().is_empty()) {
-        return Backend::External;
+        return (Backend::External, None);
+    }
+    let settings_path = dirs.root.join(t3_desktop::updates::SETTINGS_FILE);
+    if !t3_desktop::settings::load(&settings_path).local_environment_enabled {
+        return (Backend::Off, None);
     }
     let home = env("HOME").map(PathBuf::from);
     let result = (|| {
@@ -69,12 +85,15 @@ fn start_backend(dirs: &AppDirs) -> Backend {
             }
         }).map_err(|error| format!("Cannot ask the login shell: {error}"))?;
         let config = ServerConfig { binary, state_dir: dirs.server_state.clone(), log_file: dirs.server_log.clone(), pid_file: Some(dirs.server_pid.clone()), host: "127.0.0.1".into(), port, login_shell: Some(login_shell) };
-        let answers = crate::desktop_updates::answers(&dirs.root.join(t3_desktop::updates::SETTINGS_FILE));
-        Handle::spawn(ServerLauncher::new(config).with_control_channel(answers), Timing::default(), true).map_err(|error| format!("Cannot start the supervisor: {error}"))
+        let answers = crate::desktop_updates::answers(&settings_path);
+        // Where the server listens is what the person chose last (`DesktopServerExposure`); the next start reads it again.
+        let exposure = Arc::new(Exposure::configure(settings_path, port, Arc::new(SystemMachine), env("T3CODE_DESKTOP_LAN_HOST"), exposure::split_endpoints(&env("T3CODE_DESKTOP_HTTPS_ENDPOINTS").unwrap_or_default())));
+        let launcher = ServerLauncher::new(config).with_control_channel(answers).with_binding(exposure.binding());
+        Handle::spawn(launcher, Timing::default(), true).map(|handle| (handle, exposure)).map_err(|error| format!("Cannot start the supervisor: {error}"))
     })();
     match result {
-        Ok(handle) => Backend::Supervised(handle),
-        Err(message) => Backend::Unavailable(message),
+        Ok((handle, exposure)) => (Backend::Supervised(handle), Some(exposure)),
+        Err(message) => (Backend::Unavailable(message), None),
     }
 }
 
@@ -95,10 +114,12 @@ pub fn launch(app: fn() -> Element) {
             None
         }
     };
-    let shell = Shell { backend: start_backend(&dirs), dirs: dirs.clone(), ssh };
+    let (backend, exposure) = start_backend(&dirs);
+    let local_environment = !matches!(backend, Backend::Off);
+    let shell = Shell { backend, dirs: dirs.clone(), ssh, exposure, local_environment };
     let (width, height) = saved.bounds.map_or(window_state::DEFAULT_SIZE, |bounds| (bounds.width, bounds.height));
     let mut window = WindowBuilder::new()
-        .with_title(TITLE)
+        .with_title(title())
         .with_inner_size(LogicalSize::new(f64::from(width), f64::from(height)))
         .with_min_inner_size(LogicalSize::new(f64::from(window_state::MIN_SIZE.0), f64::from(window_state::MIN_SIZE.1)));
     if let Some(bounds) = saved.bounds {
@@ -110,7 +131,7 @@ pub fn launch(app: fn() -> Element) {
         use dioxus::desktop::tao::platform::macos::WindowBuilderExtMacOS;
         window = window.with_titlebar_transparent(true).with_fullsize_content_view(true).with_title_hidden(true);
     }
-    let menu = build_menu(&menu::application_menu(Platform::current(), TITLE), TITLE);
+    let menu = build_menu(&menu::application_menu(Platform::current(), &title()), &title());
     let config = dioxus::desktop::Config::new()
         .with_close_behaviour(window_close_behaviour())
         .with_window(window)
@@ -250,7 +271,7 @@ pub(crate) async fn connect(transport: runtime::TransportHandle, state: Store<Ui
     let shell = shell();
     match shell.backend {
         Backend::External => runtime::connect(transport, state, runtime::default_address(), String::new()).await,
-        Backend::Unavailable(_) => {}
+        Backend::Unavailable(_) | Backend::Off => {}
         Backend::Supervised(handle) => {
             let mut view = consume_context::<ServerView>().0;
             let mut changes = handle.state();
@@ -280,6 +301,7 @@ pub(crate) fn use_shell(state: Store<UiModel>) {
     let shell = use_hook(shell);
     use_context_provider(|| ServerView(Signal::new(match &shell.backend {
         Backend::Unavailable(message) => Some(ServerState::Failed { reason: message.clone() }),
+        Backend::Off => Some(ServerState::Stopped),
         Backend::Supervised(handle) => Some(handle.state().borrow().clone()),
         Backend::External => None,
     })));
@@ -290,7 +312,15 @@ pub(crate) fn use_shell(state: Store<UiModel>) {
     });
     let quit = use_hook({
         let (shell, persist) = (shell.clone(), persist.clone());
-        move || Rc::new(move || quit_app(&shell, &persist))
+        move || Rc::new(move || quit_app(&shell, &persist, false))
+    });
+    let relaunch: Rc<dyn Fn()> = use_hook({
+        let (shell, persist) = (shell.clone(), persist.clone());
+        move || Rc::new(move || quit_app(&shell, &persist, true)) as Rc<dyn Fn()>
+    });
+    use_context_provider({
+        let (shell, relaunch) = (shell.clone(), relaunch.clone());
+        move || crate::desktop_network::Handle(Rc::new(ShellControl { shell, tailscale: Arc::new(SystemTailscale::new()), relaunch }))
     });
 
     // SSH environments: the Connections page's gateway, and the window coming forward when ssh asks for a password.
@@ -322,16 +352,28 @@ pub(crate) fn use_shell(state: Store<UiModel>) {
         });
     }
 
-    // The window's size and place, saved a moment after it stops changing.
+    // The window's size and place, saved a moment after it stops changing; full screen and coming to the front, told to the page.
+    let watch = use_hook(|| Rc::new(RefCell::new(window_events::Watch::default())));
     use_wry_event_handler({
-        let (shell, persist, quit) = (shell.clone(), persist.clone(), quit.clone());
+        let (shell, persist, quit, watch) = (shell.clone(), persist.clone(), quit.clone(), watch.clone());
         move |event, _| {
             let Event::WindowEvent { event, window_id, .. } = event else { return };
             if window_id.clone() != dioxus::desktop::window().id() {
                 return;
             }
             match event {
+                // The notifications the person came back to are seen: the dock badge goes and the page is told to clear its own.
+                WindowEvent::Focused(focused) => {
+                    if watch.borrow_mut().gained_focus(*focused) {
+                        set_badge(0);
+                        let _ = document::eval(window_events::FOCUS_SCRIPT);
+                    }
+                }
                 WindowEvent::Moved(_) | WindowEvent::Resized(_) => {
+                    // Entering or leaving full screen resizes the window: the page gives the traffic lights' room back, or takes it again.
+                    if let Some(now) = watch.borrow_mut().fullscreen(dioxus::desktop::window().fullscreen().is_some()) {
+                        let _ = document::eval(&window_events::fullscreen_script(now));
+                    }
                     // The event carries the new value; the window itself can still report the old one while the
                     // event is being delivered.
                     let window = dioxus::desktop::window();
@@ -443,8 +485,9 @@ fn observe(persist: &Rc<RefCell<(Tracker, Debounce)>>, size: Option<LogicalSize<
     persist.borrow_mut().0.observe(seen)
 }
 
-/// Stops the server, saves the window, and ends the process.
-fn quit_app(shell: &Shell, persist: &Rc<RefCell<(Tracker, Debounce)>>) {
+/// Stops the server, saves the window, and ends the process; with `relaunch` the app is started again first, once the server has let
+/// go of the state directory (`DesktopLifecycle.relaunch`).
+fn quit_app(shell: &Shell, persist: &Rc<RefCell<(Tracker, Debounce)>>, relaunch: bool) {
     let pending = persist.borrow_mut().1.flush();
     if let Some(state) = pending {
         let _ = window_state::save(&shell.dirs.window_state, &state);
@@ -460,6 +503,13 @@ fn quit_app(shell: &Shell, persist: &Rc<RefCell<(Tracker, Debounce)>>) {
             let _ = std::fs::remove_file(&shell.dirs.server_pid);
         }
     }
+    if relaunch {
+        if let Ok(program) = std::env::current_exe() {
+            if let Err(error) = std::process::Command::new(program).args(std::env::args_os().skip(1)).stdin(std::process::Stdio::null()).spawn() {
+                eprintln!("Cannot start T3 Code again: {error}");
+            }
+        }
+    }
     std::process::exit(0);
 }
 
@@ -473,14 +523,83 @@ pub(crate) fn server_address() -> Option<String> {
     }
 }
 
-/// The endpoints the original's desktop (`DesktopServerExposure`) offers for pairing a device, as this app has them: the server it
-/// started listens on loopback only, so "This machine" plus the HTTPS addresses the person set in `T3CODE_DESKTOP_HTTPS_ENDPOINTS`
-/// (`t3_desktop::network::app_endpoints`; the local network and Tailscale ones need a wider bind or Serve, which this app does not
-/// start). A server the person named is not this app's to describe.
+/// The addresses of the server this app started, as the last read of them found (`ShellControl::endpoints`); none before the first.
+static ENDPOINTS: GlobalSignal<Option<Vec<t3_client::access::Endpoint>>> = Signal::global(|| None);
+
+/// The endpoints the original's desktop (`DesktopServerExposure`) offers for pairing a device: this machine, the local network when
+/// it is open, the HTTPS addresses the person set in `T3CODE_DESKTOP_HTTPS_ENDPOINTS`, and Tailscale's. The last read is used (the
+/// Connections page reads them when it opens and after each change); before one, this machine and the addresses the person set.
+/// As the original lists them for a link, the local ones are offered only while the network is open, and Tailscale HTTPS beside them.
+/// A server the person named is not this app's to describe.
+// TODO(original ConnectionsSettings.tsx visibleDesktopAdvertisedEndpoints): with the network closed, an HTTPS address of the person's own
+// is not offered for a link either, though it reaches the loopback address through a tunnel of theirs; copied as it is.
 pub(crate) fn advertised_endpoints() -> crate::access_page::AdvertisedEndpoints {
-    let Some(address) = server_address().filter(|_| matches!(shell().backend, Backend::Supervised(_))) else { return Default::default() };
+    let shell = shell();
+    let Some(address) = server_address().filter(|_| matches!(shell.backend, Backend::Supervised(_))) else { return Default::default() };
     let Some(port) = address.rsplit(':').next().unwrap_or_default().trim_end_matches('/').parse::<u16>().ok() else { return Default::default() };
-    crate::access_page::AdvertisedEndpoints { endpoints: t3_desktop::network::app_endpoints(port, &env("T3CODE_DESKTOP_HTTPS_ENDPOINTS").unwrap_or_default()), default_key: None }
+    let found = ENDPOINTS.read().clone().unwrap_or_else(|| t3_desktop::network::app_endpoints(port, &env("T3CODE_DESKTOP_HTTPS_ENDPOINTS").unwrap_or_default()));
+    let accessible = shell.exposure.as_ref().is_some_and(|exposure| exposure.state().mode == t3_desktop::network::Mode::NetworkAccessible);
+    let tailscale = |endpoint: &t3_client::access::Endpoint| endpoint.id.starts_with("tailscale-magicdns:");
+    let mut endpoints: Vec<_> = if accessible { found.iter().filter(|endpoint| !tailscale(endpoint)).cloned().collect() } else { Vec::new() };
+    endpoints.extend(found.iter().find(|endpoint| tailscale(endpoint)).cloned());
+    crate::access_page::AdvertisedEndpoints { endpoints, default_key: None }
+}
+
+/// What the Connections page's switches of this app ask of the shell.
+struct ShellControl {
+    shell: Shell,
+    tailscale: Arc<SystemTailscale>,
+    relaunch: Rc<dyn Fn()>,
+}
+
+fn view_of(state: exposure::State) -> crate::desktop_network::ExposureView {
+    crate::desktop_network::ExposureView { network_accessible: state.mode == t3_desktop::network::Mode::NetworkAccessible, endpoint_url: state.endpoint_url, advertised_host: state.advertised_host, tailscale_serve_enabled: state.tailscale_serve_enabled, tailscale_serve_port: state.tailscale_serve_port }
+}
+
+impl ShellControl {
+    /// The server starts again with what was saved, when the change needs it.
+    fn restart_if(&self, change: exposure::Change) -> crate::desktop_network::ExposureView {
+        if change.requires_relaunch {
+            if let Backend::Supervised(handle) = &self.shell.backend {
+                handle.restart();
+            }
+        }
+        view_of(change.state)
+    }
+}
+
+impl crate::desktop_network::Control for ShellControl {
+    fn local_environment_enabled(&self) -> bool {
+        self.shell.local_environment
+    }
+    fn set_local_environment_enabled(&self, enabled: bool) -> Result<(), String> {
+        let path = self.shell.dirs.root.join(t3_desktop::updates::SETTINGS_FILE);
+        let change = t3_desktop::settings::update(&path, |settings| settings.local_environment_enabled = enabled).map_err(|error| format!("Could not save the setting. {error}"))?;
+        if change.changed {
+            (self.relaunch)();
+        }
+        Ok(())
+    }
+    fn exposure(&self) -> Option<crate::desktop_network::ExposureView> {
+        self.shell.exposure.as_ref().map(|exposure| view_of(exposure.state()))
+    }
+    fn set_network_accessible(&self, accessible: bool) -> Result<crate::desktop_network::ExposureView, String> {
+        let exposure = self.shell.exposure.as_ref().ok_or("This app runs no server of its own.")?;
+        let mode = if accessible { t3_desktop::network::Mode::NetworkAccessible } else { t3_desktop::network::Mode::LocalOnly };
+        exposure.set_mode(mode).map(|change| self.restart_if(change)).map_err(|error| error.to_string())
+    }
+    fn set_tailscale_serve(&self, enabled: bool, port: u16) -> Result<crate::desktop_network::ExposureView, String> {
+        let exposure = self.shell.exposure.as_ref().ok_or("This app runs no server of its own.")?;
+        exposure.set_tailscale_serve(enabled, Some(port)).map(|change| self.restart_if(change)).map_err(|error| error.to_string())
+    }
+    fn endpoints(&self) -> futures_util::future::LocalBoxFuture<'static, Vec<t3_client::access::Endpoint>> {
+        let (Some(exposure), tailscale) = (self.shell.exposure.clone(), self.tailscale.clone()) else { return Box::pin(std::future::ready(Vec::new())) };
+        Box::pin(async move {
+            let found = exposure.advertised_endpoints(&*tailscale).await;
+            *ENDPOINTS.write() = Some(found.clone());
+            found
+        })
+    }
 }
 
 /// How the window reaches the server this app started, now: its address with the credential of this start, or the one the person named.
@@ -488,7 +607,7 @@ fn primary_server(backend: &Backend) -> Option<crate::ssh_environments::Primary>
     use crate::ssh_environments::Primary;
     match backend {
         Backend::External => Some(Primary::Open { address: runtime::default_address() }),
-        Backend::Unavailable(_) => None,
+        Backend::Unavailable(_) | Backend::Off => None,
         Backend::Supervised(handle) => match handle.state().borrow().clone() {
             ServerState::Ready { address, credential, .. } => Some(Primary::Pair { address, credential: credential.0 }),
             _ => None,

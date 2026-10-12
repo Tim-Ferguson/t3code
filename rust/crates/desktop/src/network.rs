@@ -16,6 +16,21 @@ pub enum Mode {
     NetworkAccessible,
 }
 
+impl Mode {
+    /// `DesktopServerExposureMode`.
+    pub fn wire(self) -> &'static str {
+        match self {
+            Self::LocalOnly => "local-only",
+            Self::NetworkAccessible => "network-accessible",
+        }
+    }
+
+    /// The saved value; anything but "network-accessible" is local only (`normalizeDesktopSettingsDocument`).
+    pub fn from_wire(text: &str) -> Self {
+        if text == "network-accessible" { Self::NetworkAccessible } else { Self::LocalOnly }
+    }
+}
+
 /// One address of one network interface of this machine (`os.networkInterfaces()`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Interface {

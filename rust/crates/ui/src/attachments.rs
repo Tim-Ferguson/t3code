@@ -658,7 +658,10 @@ pub fn on_drop(
     let transport = transport.clone();
     move |event| {
         event.prevent_default();
-        attach(&transport, state, &target, files_of(event.files()));
+        // A folder dropped on the desktop window becomes a link in the prompt; the files upload.
+        let (folders, files) = crate::desktop_drop::split(event.files());
+        crate::desktop_drop::add_folders(&transport, state, &target, folders);
+        attach(&transport, state, &target, files_of(files));
     }
 }
 

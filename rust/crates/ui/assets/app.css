@@ -8063,6 +8063,10 @@ body.sidebar-dragging {
 .desktop-inset .brand {
   user-select: none;
 }
+/* Full screen takes the traffic lights away (the shell sets the attribute), and their room with them. */
+[data-window-fullscreen] .desktop-inset .brand {
+  padding-left: 0;
+}
 
 /* The file panel: rendered markdown and an image. */
 .file-markdown,

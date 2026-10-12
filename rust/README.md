@@ -465,9 +465,10 @@ seconds have passed, and a start that is neither announced nor answering within 
 tried again. `server.pid` is removed when the server has stopped on quit. When the server stops with the failure of the import
 of the original app's data (`GET /api/rust/state-import`), the window shows the import-failed screen, and "Try again" there starts
 the server again. The Connections page's T3 Connect section, relay client row and share panel are described in the UI list above:
-the share panel (QR code and the choice among advertised endpoints) offers the one endpoint this app has, the server's own loopback
-address, which gets no code because a device that scanned it would dial itself; LAN and Tailscale endpoints (the original's
-`getAdvertisedEndpoints`) need a server that listens beyond loopback, which this app does not start.
+the share panel (QR code and the choice among advertised endpoints) offers the server's loopback address, which gets no code because
+a device that scanned it would dial itself, and the LAN and Tailscale endpoints once the network is opened.
+
+The Connections page's "This machine" section holds the app's own switches. Local environment (off: the app starts no server and restarts) is kept in `desktop-settings.json` in the data directory, beside the update track and any key this app does not know. Network access makes the next start of the server listen on `0.0.0.0` instead of loopback (the confirmation restarts only the server); the window still dials loopback. Tailscale HTTPS starts the server with Tailscale Serve on the chosen port, and the app asks the `tailscale` program for the MagicDNS name only while the network or Serve is open. `T3CODE_DESKTOP_LAN_HOST` sets the host links name and `T3CODE_DESKTOP_HTTPS_ENDPOINTS` adds addresses of your own. A folder dropped on the composer becomes a link in the prompt when the server is on this computer.
 
 Context menus (`contextMenu.show` in the original) are one model, `t3_client::context_menu` (the original's `ContextMenuItem`, and what its
 native menu keeps of an item: headers dropped, empty submenus dropped, dividers placed as `ElectronMenu.ts` places them), with two
