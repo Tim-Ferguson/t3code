@@ -1,6 +1,8 @@
-//! Consent, discovery, device boot/session state and scoped subscriptions.
+//! Consent, discovery, device boot/session state and scoped subscriptions, for the local host and every configured SSH host
+//! (`device/DeviceService.ts`: `makeWithHosts`, `make`). Hosts are `DeviceHost`s; the service keeps one state for all of them, keyed by host id.
 use crate::{
-    local_device_host::{DeviceHostReady, DevicePhase, LocalDeviceHost},
+    device_host::DeviceHost,
+    local_device_host::{DeviceHostAgentReady, DeviceHostReady, DevicePhase, LocalDeviceHost},
     server_settings::SettingsService,
 };
 use futures_util::future::BoxFuture;
@@ -19,13 +21,24 @@ struct State {
     listeners: BTreeMap<u64, mpsc::UnboundedSender<DeviceServiceState>>,
     next_listener: u64,
 }
+/// The hosts in the order they were added (a replaced host goes last, as in the original's `Map`), and the ones the published state last
+/// described: a host that is not the same one in both has had its devices, sessions and status dropped by `refresh_hosts`.
+struct Registry {
+    hosts: Vec<Arc<dyn DeviceHost>>,
+    published: Vec<Arc<dyn DeviceHost>>,
+}
 struct Inner {
+    /// The local host: the agent CLI, the toolchain and the state directory belong to it alone.
     host: LocalDeviceHost,
+    registry: Mutex<Registry>,
     settings: SettingsService,
     state: Mutex<State>,
     lifecycle: Arc<tokio::sync::Mutex<()>>,
     writes: Mutex<Vec<tokio::task::JoinHandle<()>>>,
     write_cleanup: tokio::sync::Mutex<Vec<tokio::task::JoinHandle<()>>>,
+    /// The SSH hosts settings name that are running, and the task that follows settings changes (`manage_ssh_hosts`).
+    ssh_hosts: tokio::sync::Mutex<Vec<crate::ssh_device_host::SshDeviceHost>>,
+    reconcile_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     #[cfg(test)]
     write_hook: Mutex<Option<Arc<dyn Fn() + Send + Sync>>>,
     #[cfg(test)]
@@ -101,10 +114,32 @@ fn not_found(host_id: DeviceHostId, device_id: DeviceId) -> DeviceError {
 fn local() -> DeviceHostId {
     DeviceHostId::new("local").unwrap()
 }
+fn changed(host: &DeviceHostId) -> DeviceError {
+    host_error(host.clone(), "Host configuration changed. Retry the operation.")
+}
+/// The text a failed host's status carries: the original sets it from the host's own error, before it is turned into the
+/// unavailable error a caller sees.
+fn failure_detail(error: &DeviceHostUnavailableError) -> String {
+    error
+        .cause
+        .as_ref()
+        .and_then(|cause| cause.as_ref())
+        .filter(|cause| cause["_tag"] == "DeviceHostError")
+        .and_then(|cause| cause["message"].as_str().map(str::to_owned))
+        .unwrap_or_else(|| error.reason.clone())
+}
 impl DeviceService {
     pub async fn new(
         settings: SettingsService,
         host: LocalDeviceHost,
+    ) -> Result<Self, DeviceError> {
+        Self::with_hosts(settings, host, Vec::new()).await
+    }
+    /// `makeWithHosts`: the local host and any other hosts, which `manage_ssh_hosts` keeps in step with settings.
+    pub async fn with_hosts(
+        settings: SettingsService,
+        host: LocalDeviceHost,
+        others: Vec<Arc<dyn DeviceHost>>,
     ) -> Result<Self, DeviceError> {
         let current = settings.snapshot().await.map_err(|error| {
             operation_error(
@@ -113,17 +148,23 @@ impl DeviceService {
                 json!(error.to_string()),
             )
         })?;
-        let summary = host.summary().await;
+        let mut hosts: Vec<Arc<dyn DeviceHost>> = vec![Arc::new(host.clone())];
+        hosts.extend(others);
+        let mut summaries = Vec::new();
+        for host in &hosts {
+            summaries.push(host.summary().await);
+        }
         let (stopped, _) = watch::channel(false);
         Ok(Self(Arc::new(Inner {
             host,
+            registry: Mutex::new(Registry { published: hosts.clone(), hosts }),
             settings,
             state: Mutex::new(State {
                 snapshot: DeviceServiceState {
                     supports_host_retry: Some(Some(true)),
                     supports_tool_update: Some(Some(true)),
                     supports_tool_inspection: Some(Some(true)),
-                    hosts: vec![summary],
+                    hosts: summaries,
                     host_status: if current.enable_device_support {
                         DeviceHostStatus::Idle
                     } else {
@@ -145,6 +186,8 @@ impl DeviceService {
             lifecycle: Arc::new(tokio::sync::Mutex::new(())),
             writes: Mutex::new(Vec::new()),
             write_cleanup: tokio::sync::Mutex::new(Vec::new()),
+            ssh_hosts: tokio::sync::Mutex::new(Vec::new()),
+            reconcile_task: Mutex::new(None),
             #[cfg(test)]
             write_hook: Mutex::new(None),
             #[cfg(test)]
@@ -192,12 +235,32 @@ impl DeviceService {
             .retain(|_, sender| sender.send(snapshot.clone()).is_ok());
         snapshot
     }
-    fn status(&self, status: DeviceHostStatus, detail: Option<String>) {
+    fn hosts(&self) -> Vec<Arc<dyn DeviceHost>> {
+        self.0.registry.lock().unwrap().hosts.clone()
+    }
+    /// Whether `host` is still the host the service has under its id (a reconfigured host is a different one).
+    fn is_current(&self, host: &Arc<dyn DeviceHost>) -> bool {
+        self.0.registry.lock().unwrap().hosts.iter().any(|candidate| Arc::ptr_eq(candidate, host))
+    }
+    async fn summaries(&self) -> Vec<DeviceHostSummary> {
+        let mut summaries = Vec::new();
+        for host in self.hosts() {
+            summaries.push(host.summary().await);
+        }
+        summaries
+    }
+    /// `setHostStatus`: a status for a host the service does not have is dropped.
+    fn status(&self, host: &DeviceHostId, status: DeviceHostStatus, detail: Option<String>) {
+        if !self.hosts().iter().any(|candidate| candidate.id() == *host) {
+            return;
+        }
         self.publish(|state| {
-            state.host_status = status;
-            state.host_status_detail = detail.clone().map(Some);
+            if *host == local() {
+                state.host_status = status;
+                state.host_status_detail = detail.clone().map(Some);
+            }
             state.host_statuses.insert(
-                local(),
+                host.clone(),
                 DeviceHostState {
                     status,
                     detail: detail.map(Some),
@@ -205,14 +268,28 @@ impl DeviceService {
             );
         });
     }
-    fn resolve_host(&self, id: Option<&DeviceHostId>) -> Result<(), DeviceError> {
-        if id.is_some_and(|id| id.as_str() != "local") {
-            return Err(host_error(id.unwrap().clone(), "Unknown host."));
-        }
+    /// What a host calls while it installs and starts: its status, in the state every client follows.
+    fn phase(&self, host: DeviceHostId) -> DevicePhase {
+        let owner = Arc::downgrade(&self.0);
+        Arc::new(move |status, detail| {
+            let owner = owner.clone();
+            let host = host.clone();
+            Box::pin(async move {
+                if let Some(owner) = owner.upgrade() {
+                    DeviceService(owner).status(&host, status, detail);
+                }
+            })
+        })
+    }
+    fn resolve_host(&self, id: Option<&DeviceHostId>) -> Result<Arc<dyn DeviceHost>, DeviceError> {
         if *self.0.stopped.borrow() {
-            return Err(host_error(local(), "Device service is shutting down."));
+            return Err(host_error(id.cloned().unwrap_or_else(local), "Device service is shutting down."));
         }
-        Ok(())
+        let wanted = id.cloned().unwrap_or_else(local);
+        self.hosts()
+            .into_iter()
+            .find(|host| host.id() == wanted)
+            .ok_or_else(|| host_error(wanted, "Unknown host."))
     }
     async fn enabled(&self) -> Result<bool, DeviceError> {
         Ok(self
@@ -233,63 +310,97 @@ impl DeviceService {
         &self,
         id: Option<&DeviceHostId>,
     ) -> Result<DeviceHostReady, DeviceError> {
-        self.resolve_host(id)?;
+        let host = self.resolve_host(id)?;
         let _lifecycle = self.0.lifecycle.lock().await;
         if !self.enabled().await? {
             return Err(host_error(
-                local(),
+                host.id(),
                 "Device support is off. Enable it in the Device panel before installing or starting device tools.",
             ));
         }
-        let owner = Arc::downgrade(&self.0);
-        let callback: DevicePhase = Arc::new(move |status, detail| {
-            let owner = owner.clone();
-            Box::pin(async move {
-                if let Some(owner) = owner.upgrade() {
-                    DeviceService(owner).status(status, detail);
-                }
-            })
-        });
-        match self.0.host.ensure_ready(callback).await {
+        match host.ensure_ready(self.phase(host.id())).await {
             Ok(ready) => {
                 self.resolve_host(id)?;
-                if self.0.host.generation() != ready.generation {
-                    return Err(host_error(
-                        local(),
-                        "Host configuration changed. Retry the operation.",
-                    ));
+                if !self.is_current(&host) || host.generation() != ready.generation {
+                    return Err(changed(&host.id()));
                 }
-                self.status(DeviceHostStatus::Ready, None);
+                let already = self.snapshot().host_statuses.get(&host.id()).is_some_and(|state| state.status == DeviceHostStatus::Ready);
+                if !already {
+                    self.status(&host.id(), DeviceHostStatus::Ready, None);
+                }
                 Ok(ready)
             }
             Err(error) => {
-                self.status(DeviceHostStatus::Failed, Some(error.reason.clone()));
+                self.status(&host.id(), DeviceHostStatus::Failed, Some(failure_detail(&error)));
                 Err(DeviceError::DeviceHostUnavailableError(error))
             }
         }
     }
+    /// `readinessIfSupported`: a local machine with no simulator toolchain never installs or starts anything.
+    async fn readiness_if_supported(&self, id: Option<&DeviceHostId>) -> Result<Option<DeviceHostReady>, DeviceError> {
+        if !self.enabled().await? {
+            return Ok(None);
+        }
+        let host = self.resolve_host(id)?;
+        let summary = host.summary().await;
+        if summary.kind == DeviceHostKind::Local && !summary.platforms.iter().any(|platform| platform.available) {
+            return Ok(None);
+        }
+        self.readiness(Some(&host.id())).await.map(Some)
+    }
+    async fn inspect_host(&self, host: Arc<dyn DeviceHost>) {
+        let result = host.inspect().await;
+        if !self.is_current(&host) {
+            return;
+        }
+        let id = host.id();
+        match result {
+            Err(_) => {
+                self.publish(|state| {
+                    for value in state.hosts.iter_mut().filter(|value| value.id == id) {
+                        value.tool_inspection_error = Some(Some("Cannot check versions. Reconnect the host and check again. Installed tools have not been changed.".into()));
+                    }
+                });
+            }
+            Ok(summary) => {
+                self.publish(|state| {
+                    for value in state.hosts.iter_mut().filter(|value| value.id == id) {
+                        *value = summary.clone();
+                    }
+                });
+            }
+        }
+    }
+    /// What `device.testHost` answers for a host that resolves to this machine: the local host's own summary, without asking any other host.
+    pub async fn local_summary(&self) -> DeviceHostSummary {
+        self.0.host.summary().await
+    }
+    /// `inspect`: asks each host (four at a time) which tools it has; a host that cannot say keeps what it had and is marked.
     pub async fn inspect(&self) -> DeviceServiceState {
-        let summary = self.0.host.summary().await;
-        self.publish(|state| {
-            state.hosts = vec![summary];
-        })
+        for hosts in self.hosts().chunks(4) {
+            futures_util::future::join_all(hosts.iter().cloned().map(|host| self.inspect_host(host))).await;
+        }
+        self.snapshot()
+    }
+    async fn list_host(&self, host: Arc<dyn DeviceHost>) {
+        let result = async {
+            if let Some(ready) = self.readiness_if_supported(Some(&host.id())).await? {
+                self.refresh(&ready).await?;
+            }
+            Ok::<(), DeviceError>(())
+        }
+        .await;
+        if let Err(error) = result {
+            self.status(&host.id(), DeviceHostStatus::Failed, Some(error_message(&error)));
+        }
     }
     pub async fn list(&self) -> Result<DeviceServiceState, DeviceError> {
         self.resolve_host(None)?;
         if !self.enabled().await? {
             return Ok(self.snapshot());
         }
-        let summary = self.0.host.summary().await;
-        if !summary.platforms.iter().any(|platform| platform.available) {
-            return Ok(self.snapshot());
-        }
-        match self.readiness(None).await {
-            Ok(ready) => {
-                if let Err(error) = self.refresh(&ready).await {
-                    self.status(DeviceHostStatus::Failed, Some(error_message(&error)));
-                }
-            }
-            Err(_) => {}
+        for hosts in self.hosts().chunks(4) {
+            futures_util::future::join_all(hosts.iter().cloned().map(|host| self.list_host(host))).await;
         }
         Ok(self.snapshot())
     }
@@ -314,32 +425,34 @@ impl DeviceService {
             })?;
         Ok(self.inspect().await)
     }
+    /// `retryHost`: tries one host again, with its agent tools when agent access is on.
     pub async fn retry_host(&self, id: DeviceHostId) -> Result<DeviceServiceState, DeviceError> {
         self.resolve_host(Some(&id))?;
-        if self
-            .0
-            .settings
-            .snapshot()
-            .await
-            .map_err(|error| {
-                operation_error(
-                    "settings",
-                    DeviceOperationFailureReason::SettingsFailed,
-                    json!(error.to_string()),
-                )
-            })?
-            .enable_agent_device_access
-        {
-            self.agent_readiness_if_supported(Some(&id)).await?;
+        if !self.enabled().await? {
+            return Ok(self.snapshot());
         }
-        self.list().await
+        let result = async {
+            let ready = match self.agent_readiness_if_supported(Some(&id)).await? {
+                Some(ready) => Some(ready.host),
+                None => self.readiness_if_supported(Some(&id)).await?,
+            };
+            if let Some(ready) = ready {
+                self.refresh(&ready).await?;
+            }
+            Ok::<(), DeviceError>(())
+        }
+        .await;
+        if let Err(error) = result {
+            self.status(&id, DeviceHostStatus::Failed, Some(error_message(&error)));
+        }
+        Ok(self.snapshot())
     }
     pub async fn agent_readiness_if_supported(
         &self,
         id: Option<&DeviceHostId>,
-    ) -> Result<Option<crate::local_device_host::DeviceHostAgentReady>, DeviceError> {
+    ) -> Result<Option<DeviceHostAgentReady>, DeviceError> {
         let _lifecycle = self.0.lifecycle.lock().await;
-        self.resolve_host(id)?;
+        let host = self.resolve_host(id)?;
         let settings = self.0.settings.snapshot().await.map_err(|error| {
             operation_error(
                 "settings",
@@ -350,35 +463,23 @@ impl DeviceService {
         if !settings.enable_device_support || !settings.enable_agent_device_access {
             return Ok(None);
         }
-        let summary = self.0.host.summary().await;
-        if !summary.platforms.iter().any(|platform| platform.available) {
+        let summary = host.summary().await;
+        if summary.kind == DeviceHostKind::Local && !summary.platforms.iter().any(|platform| platform.available) {
             return Ok(None);
         }
-        let owner = Arc::downgrade(&self.0);
-        let callback: DevicePhase = Arc::new(move |status, detail| {
-            let owner = owner.clone();
-            Box::pin(async move {
-                if let Some(owner) = owner.upgrade() {
-                    DeviceService(owner).status(status, detail);
-                }
-            })
-        });
-        match self.0.host.ensure_agent_ready(callback).await {
+        match host.ensure_agent_ready(self.phase(host.id())).await {
             Ok(ready) => {
                 self.resolve_host(id)?;
-                if self.0.host.generation() != ready.host.generation {
-                    return Err(host_error(
-                        local(),
-                        "Host configuration changed. Retry the operation.",
-                    ));
+                if !self.is_current(&host) || host.generation() != ready.host.generation {
+                    return Err(changed(&host.id()));
                 }
-                let summary = self.0.host.summary().await;
-                self.publish(|state| state.hosts = vec![summary]);
-                self.status(DeviceHostStatus::Ready, None);
+                let summaries = self.summaries().await;
+                self.publish(|state| state.hosts = summaries);
+                self.status(&host.id(), DeviceHostStatus::Ready, None);
                 Ok(Some(ready))
             }
             Err(error) => {
-                self.status(DeviceHostStatus::Failed, Some(error.reason.clone()));
+                self.status(&host.id(), DeviceHostStatus::Failed, Some(failure_detail(&error)));
                 Err(DeviceError::DeviceHostUnavailableError(error))
             }
         }
@@ -416,9 +517,13 @@ impl DeviceService {
                     )
                 })?;
             if !settings.enable_device_support {
-                self.0.host.stop().await;
+                for host in self.hosts() {
+                    host.stop().await;
+                }
             } else if agent == Some(false) {
-                self.0.host.stop_agent().await;
+                for host in self.hosts() {
+                    host.stop_agent().await;
+                }
             }
             self.publish(|state| {
                 state.host_status = if settings.enable_device_support {
@@ -445,10 +550,11 @@ impl DeviceService {
     pub async fn agent_target(
         &self,
         thread: &ThreadId,
-        host: &DeviceHostId,
+        host_id: &DeviceHostId,
         device: &DeviceId,
     ) -> Result<Vec<String>, DeviceError> {
-        let ready=self.agent_readiness_if_supported(Some(host)).await?.ok_or_else(||host_error(host.clone(),"Agent device access requires enabled device support, agent access, and an available simulator platform on this host."))?;
+        let host = self.resolve_host(Some(host_id))?;
+        let ready=self.agent_readiness_if_supported(Some(host_id)).await?.ok_or_else(||host_error(host_id.clone(),"Agent device access requires enabled device support, agent access, and an available simulator platform on this host."))?;
         #[cfg(test)]
         {
             let hook = { self.0.target_ready_hook.lock().unwrap().clone() };
@@ -457,7 +563,7 @@ impl DeviceService {
             }
         }
         let admission = self.0.lifecycle.clone().lock_owned().await;
-        self.resolve_host(Some(host))?;
+        self.resolve_host(Some(host_id))?;
         let settings = self.0.settings.snapshot().await.map_err(|error| {
             operation_error(
                 "configure agent",
@@ -467,26 +573,23 @@ impl DeviceService {
         })?;
         if !settings.enable_device_support
             || !settings.enable_agent_device_access
-            || self.0.host.current_agent().as_ref() != Some(&ready.agent_device)
+            || host.current_agent().as_ref() != Some(&ready.agent_device)
         {
             return Err(host_error(
-                host.clone(),
+                host_id.clone(),
                 "Agent device access requires enabled device support, agent access, and an available simulator platform on this host.",
             ));
         }
-        if self.0.host.generation() != ready.host.generation {
-            return Err(host_error(
-                host.clone(),
-                "Host configuration changed. Retry the operation.",
-            ));
+        if !self.is_current(&host) || host.generation() != ready.host.generation {
+            return Err(changed(host_id));
         }
-        let file = crate::device_agent_target::config_path(self.0.host.state_dir(), host.as_str());
+        let file = crate::device_agent_target::config_path(self.0.host.state_dir(), host_id.as_str());
         let session =
-            crate::device_agent_target::session(thread.as_str(), host.as_str(), device.as_str());
+            crate::device_agent_target::session(thread.as_str(), host_id.as_str(), device.as_str());
         let (reply, receive) = tokio::sync::oneshot::channel();
         {
             let mut jobs = self.0.writes.lock().unwrap();
-            self.resolve_host(Some(host))?;
+            self.resolve_host(Some(host_id))?;
             jobs.retain(|job| !job.is_finished());
             #[cfg(test)]
             let hook = self.0.write_hook.lock().unwrap().clone();
@@ -604,7 +707,7 @@ impl DeviceService {
         let mut devices = Vec::new();
         for device in list.simulators.into_iter().chain(list.emulators) {
             devices.push(DeviceSummary {
-                host_id: local(),
+                host_id: ready.host_id.clone(),
                 id: DeviceId::new(device.id).map_err(|error| {
                     operation_error(
                         "list",
@@ -625,13 +728,8 @@ impl DeviceService {
                 physical: device.physical,
             });
         }
-        if self
-            .0
-            .host
-            .platform(DevicePlatform::Android)
-            .await
-            .available
-        {
+        let host = self.resolve_host(Some(&ready.host_id))?;
+        if host.platform(DevicePlatform::Android).await.available {
             let output = ready
                 .run_command(
                     "emulator",
@@ -660,7 +758,7 @@ impl DeviceService {
                     device.platform == DevicePlatform::Android && device.name.as_str() == name
                 }) {
                     devices.push(DeviceSummary {
-                        host_id: local(),
+                        host_id: ready.host_id.clone(),
                         id: DeviceId::new(name).map_err(|error| {
                             operation_error(
                                 "list",
@@ -680,21 +778,29 @@ impl DeviceService {
         Ok((devices, detail))
     }
     async fn refresh(&self, ready: &DeviceHostReady) -> Result<DeviceServiceState, DeviceError> {
+        let host = self.resolve_host(Some(&ready.host_id)).ok();
         let (devices, detail) = self.fetch_devices(ready).await?;
-        let summary = self.0.host.summary().await;
+        let summaries = self.summaries().await;
         let _lifecycle = self.0.lifecycle.lock().await;
+        let Some(host) = host else {
+            return Ok(self.snapshot());
+        };
         if !self.enabled().await?
             || *self.0.stopped.borrow()
-            || self.0.host.generation() != ready.generation
+            || !self.is_current(&host)
+            || host.generation() != ready.generation
         {
             return Ok(self.snapshot());
         }
         Ok(self.publish(|state| {
-            state.hosts = vec![summary];
-            state.devices = devices;
-            state.host_status_detail = detail.clone().map(Some);
+            state.hosts = summaries;
+            if ready.host_id == local() {
+                state.host_status_detail = detail.clone().map(Some);
+            }
+            state.devices.retain(|device| device.host_id != ready.host_id);
+            state.devices.extend(devices);
             state.host_statuses.insert(
-                local(),
+                ready.host_id.clone(),
                 DeviceHostState {
                     status: DeviceHostStatus::Ready,
                     detail: detail.map(Some),
@@ -703,13 +809,14 @@ impl DeviceService {
         }))
     }
     pub async fn open(&self, input: DeviceOpenInput) -> Result<DeviceSession, DeviceError> {
-        self.resolve_host(input.host_id.as_ref().and_then(Option::as_ref))?;
-        let availability = self.0.host.platform(input.platform).await;
+        let host = self.resolve_host(input.host_id.as_ref().and_then(Option::as_ref))?;
+        let host_id = host.id();
+        let availability = host.platform(input.platform).await;
         if !availability.available {
             return Err(DeviceError::DevicePlatformUnavailableError(
                 DevicePlatformUnavailableError {
                     tag: DevicePlatformUnavailableErrorTag::DevicePlatformUnavailableError,
-                    host_id: local(),
+                    host_id,
                     platform: input.platform,
                     reason: availability
                         .reason
@@ -718,14 +825,14 @@ impl DeviceService {
                 },
             ));
         }
-        let ready = self.readiness(None).await?;
+        let ready = self.readiness(Some(&host_id)).await?;
         let mut state = self.refresh(&ready).await?;
         let mut device = state
             .devices
             .iter()
-            .find(|device| device.id == input.device_id)
+            .find(|device| device.host_id == host_id && device.id == input.device_id)
             .cloned()
-            .ok_or_else(|| not_found(local(), input.device_id.clone()))?;
+            .ok_or_else(|| not_found(host_id.clone(), input.device_id.clone()))?;
         if !device.booted && input.boot.flatten() != Some(false) {
             let booting = DeviceBootingDevice {
                 host_id: device.host_id.clone(),
@@ -755,15 +862,15 @@ impl DeviceService {
             device = state
                 .devices
                 .iter()
-                .find(|candidate| candidate.id == booted_id)
+                .find(|candidate| candidate.host_id == host_id && candidate.id == booted_id)
                 .or_else(|| {
                     state
                         .devices
                         .iter()
-                        .find(|candidate| candidate.id == device.id)
+                        .find(|candidate| candidate.host_id == host_id && candidate.id == device.id)
                 })
                 .cloned()
-                .ok_or_else(|| not_found(local(), booted_id))?;
+                .ok_or_else(|| not_found(host_id.clone(), booted_id))?;
         } else if device.platform == DevicePlatform::Ios && device.booted {
             let _: HubAction = self
                 .hub_json(
@@ -777,23 +884,20 @@ impl DeviceService {
         }
         let session = DeviceSession {
             thread_id: input.thread_id,
-            host_id: local(),
+            host_id: host_id.clone(),
             device_id: device.id,
             platform: device.platform,
             opened_at: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
         };
         {
             let _lifecycle = self.0.lifecycle.lock().await;
-            self.resolve_host(None)?;
-            if self.0.host.generation() != ready.generation {
-                return Err(host_error(
-                    local(),
-                    "Host configuration changed. Retry the operation.",
-                ));
+            self.resolve_host(Some(&host_id))?;
+            if !self.is_current(&host) || host.generation() != ready.generation {
+                return Err(changed(&host_id));
             }
             if !self.enabled().await? {
                 return Err(host_error(
-                    local(),
+                    host_id,
                     "Device support was turned off while the device was opening.",
                 ));
             }
@@ -841,7 +945,7 @@ impl DeviceService {
             };
             return Err(DeviceError::DeviceBootError(DeviceBootError {
                 tag: DeviceBootErrorTag::DeviceBootError,
-                host_id: local(),
+                host_id: ready.host_id.clone(),
                 device_id: device.id.clone(),
                 reason,
                 cause: json!({"ok":false,"error":result.error}),
@@ -877,19 +981,19 @@ impl DeviceService {
         host_id: Option<&DeviceHostId>,
         device_id: &DeviceId,
     ) -> Result<(DeviceHostReady, DeviceSummary), DeviceError> {
-        self.resolve_host(host_id)?;
-        let ready = self.readiness(host_id).await?;
+        let host = self.resolve_host(host_id)?;
+        let ready = self.readiness(Some(&host.id())).await?;
         let find = |state: DeviceServiceState| {
             state
                 .devices
                 .into_iter()
-                .find(|device| device.host_id == local() && &device.id == device_id)
+                .find(|device| device.host_id == ready.host_id && &device.id == device_id)
         };
         let device = match find(self.snapshot()) {
             Some(device) => Some(device),
             None => find(self.refresh(&ready).await?),
         }
-        .ok_or_else(|| not_found(local(), device_id.clone()))?;
+        .ok_or_else(|| not_found(ready.host_id.clone(), device_id.clone()))?;
         Ok((ready, device))
     }
     fn action_helpers(ready: &DeviceHostReady) -> crate::device_actions::Helpers {
@@ -928,8 +1032,7 @@ impl DeviceService {
     }
     /// Media routes inspect an existing endpoint and never install or start tools.
     pub fn current_readiness(&self, host_id: Option<&DeviceHostId>) -> Option<DeviceHostReady> {
-        self.resolve_host(host_id).ok()?;
-        self.0.host.current()
+        self.resolve_host(host_id).ok()?.current()
     }
     pub async fn screenshot(
         &self,
@@ -994,7 +1097,7 @@ impl DeviceService {
         )
         .await;
         Ok(DeviceDetail {
-            host_id: local(),
+            host_id: device.host_id,
             device_id: device.id,
             settings,
             foreground_app,
@@ -1014,7 +1117,7 @@ impl DeviceService {
         )
         .await?;
         self.detail(DeviceDetailInput {
-            host_id: Some(Some(local())),
+            host_id: Some(Some(device.host_id)),
             device_id: device.id,
         })
         .await
@@ -1051,8 +1154,8 @@ impl DeviceService {
         Ok(())
     }
     pub async fn shutdown_device(&self, input: DeviceShutdownInput) -> Result<(), DeviceError> {
-        self.resolve_host(input.host_id.as_ref().and_then(Option::as_ref))?;
-        let ready = self.readiness(None).await?;
+        let host = self.resolve_host(input.host_id.as_ref().and_then(Option::as_ref))?;
+        let ready = self.readiness(Some(&host.id())).await?;
         let path = if input.platform == DevicePlatform::Ios {
             "/vendor/serve-sim/grid/api/shutdown"
         } else {
@@ -1096,12 +1199,12 @@ impl DeviceService {
         }
         self.publish(|state| {
             for device in &mut state.devices {
-                if device.id == input.device_id {
+                if device.host_id == ready.host_id && device.id == input.device_id {
                     device.booted = false;
                 }
             }
             state.sessions.retain(|session| {
-                session.host_id != local() || session.device_id != input.device_id
+                session.host_id != ready.host_id || session.device_id != input.device_id
             });
         });
         let _ = self.refresh(&ready).await;
@@ -1114,13 +1217,114 @@ impl DeviceService {
             .filter(|session| &session.thread_id == thread)
             .collect()
     }
+    /// `refreshHosts`: after a host was added, replaced or removed, publishes the hosts' summaries and drops the status, devices and
+    /// sessions of a host that is not the one they were published for.
+    async fn refresh_hosts(&self) {
+        let summaries = self.summaries().await;
+        let (hosts, published) = {
+            let registry = self.0.registry.lock().unwrap();
+            (registry.hosts.clone(), registry.published.clone())
+        };
+        let unchanged = |id: &DeviceHostId| {
+            hosts.iter().find(|host| host.id() == *id).zip(published.iter().find(|host| host.id() == *id)).is_some_and(|(now, then)| Arc::ptr_eq(now, then))
+        };
+        self.publish(|state| {
+            state.hosts = summaries;
+            state.host_statuses.retain(|id, _| unchanged(id));
+            state.devices.retain(|device| unchanged(&device.host_id));
+            state.sessions.retain(|session| unchanged(&session.host_id));
+        });
+        self.0.registry.lock().unwrap().published = hosts;
+    }
+    /// `make`'s `reconcile`, run on the settings as they are and on every change after: the SSH hosts settings name (and that do not
+    /// resolve to this machine) are the SSH hosts the service has. A host whose label, target, port or identity changed is replaced; a host
+    /// settings no longer name is stopped and its agent-device config removed.
+    pub async fn manage_ssh_hosts(&self, resolver: crate::device_host_resolver::DeviceHostResolver) {
+        let Ok(mut subscription) = self.0.settings.subscribe().await else {
+            return;
+        };
+        self.reconcile(&resolver, subscription.snapshot.device_hosts.0.clone()).await;
+        let owner = Arc::downgrade(&self.0);
+        let task = tokio::spawn(async move {
+            while let Some(settings) = subscription.recv().await {
+                let Some(owner) = owner.upgrade() else { return };
+                DeviceService(owner).reconcile(&resolver, settings.device_hosts.0).await;
+            }
+        });
+        *self.0.reconcile_task.lock().unwrap() = Some(task);
+    }
+    async fn reconcile(&self, resolver: &crate::device_host_resolver::DeviceHostResolver, configured: Vec<SshDeviceHostConfig>) {
+        use crate::ssh_device_host::SshDeviceHost;
+        let next = resolver.remote_hosts(configured).await;
+        let mut running = self.0.ssh_hosts.lock().await;
+        let removed = {
+            let _lifecycle = self.0.lifecycle.lock().await;
+            let mut removed = Vec::new();
+            running.retain(|host| {
+                let previous = host.config();
+                let kept = next.iter().any(|candidate| {
+                    candidate.id == previous.id && candidate.label == previous.label && candidate.target == previous.target && candidate.port == previous.port && candidate.identity_file == previous.identity_file
+                });
+                if !kept {
+                    removed.push(host.clone());
+                }
+                kept
+            });
+            self.0.registry.lock().unwrap().hosts.retain(|host| !removed.iter().any(|gone| host.id().as_str() == gone.config().id.as_str()));
+            self.refresh_hosts().await;
+            removed
+        };
+        // Old connections end before their config files go or a replacement is published, and without blocking healthy hosts.
+        let state_dir = self.0.host.state_dir().to_path_buf();
+        futures_util::future::join_all(removed.into_iter().map(|host| {
+            let state_dir = state_dir.clone();
+            async move {
+                host.shutdown().await;
+                let _ = tokio::fs::remove_file(crate::device_agent_target::config_path(&state_dir, host.config().id.as_str())).await;
+            }
+        }))
+        .await;
+        let _lifecycle = self.0.lifecycle.lock().await;
+        for config in next {
+            if running.iter().any(|host| host.config().id == config.id) {
+                continue;
+            }
+            let id = DeviceHostId::new(config.id.as_str()).expect("a device host id is a valid host id");
+            let weak = Arc::downgrade(&self.0);
+            let file = crate::device_agent_target::config_path(&state_dir, config.id.as_str());
+            let on_ready: crate::ssh_device_host::OnAgentReady = Arc::new(move |ready| {
+                let file = file.clone();
+                let id = id.clone();
+                Box::pin(async move {
+                    let endpoint = ready.agent_device;
+                    tokio::task::spawn_blocking(move || crate::device_agent_target::write_config(&file, &endpoint))
+                        .await
+                        .map_err(|error| error.to_string())
+                        .and_then(|result| result.map_err(|error| error.to_string()))
+                        .map_err(|cause| crate::ssh_device_host::HostError { host_id: id.as_str().to_owned(), step: "configuring agent access".into(), cause })
+                })
+            });
+            let on_status = weak.upgrade().map(|owner| DeviceService(owner).phase(DeviceHostId::new(config.id.as_str()).unwrap()));
+            let host = SshDeviceHost::new(config, t3_remote::ssh::Ssh::with_executable(resolver.ssh_binary().to_string_lossy().into_owned()), &state_dir, Some(on_ready), on_status);
+            self.0.registry.lock().unwrap().hosts.push(Arc::new(host.clone()));
+            running.push(host);
+        }
+        self.refresh_hosts().await;
+    }
     pub async fn closed(&self) {
         let mut stopped = self.0.stopped.subscribe();
         let _ = stopped.wait_for(|stopped| *stopped).await;
     }
     pub async fn shutdown(&self) {
         self.0.stopped.send_replace(true);
-        self.0.host.shutdown().await;
+        let reconcile = self.0.reconcile_task.lock().unwrap().take();
+        if let Some(task) = reconcile {
+            task.abort();
+            let _ = task.await;
+        }
+        for host in self.hosts() {
+            host.shutdown().await;
+        }
         self.0.host.toolchain().shutdown().await;
         let mut writes = self.0.write_cleanup.lock().await;
         writes.extend(self.0.writes.lock().unwrap().drain(..));
@@ -1144,7 +1348,6 @@ fn error_message(error: &DeviceError) -> String {
         _ => "Device discovery failed.".into(),
     }
 }
-
 #[cfg(all(test, unix))]
 pub(crate) mod tests {
     use crate::test_support::HANG_BOUND;
@@ -1842,3 +2045,7 @@ pub(crate) mod tests {
         .unwrap();
     }
 }
+
+#[cfg(all(test, unix))]
+#[path = "device_multi_host_tests.rs"]
+mod multi_host_tests;

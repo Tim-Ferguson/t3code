@@ -22,14 +22,22 @@ use tokio::{
 };
 pub type DevicePhase =
     Arc<dyn Fn(DeviceHostStatus, Option<String>) -> BoxFuture<'static, ()> + Send + Sync>;
+/// Where a ready host's commands (`xcrun`, `adb`, `emulator`, helpers) run: here, or over SSH on the machine the devices are on.
+#[derive(Debug, Clone)]
+enum Runner {
+    Local { commands: crate::device_commands::DeviceCommands, environment: Environment },
+    Ssh(crate::ssh_device_host::SshRunner),
+}
 #[derive(Debug, Clone)]
 pub struct DeviceHostReady {
+    /// The host this endpoint belongs to (`DeviceReadiness.hostId`).
+    pub host_id: DeviceHostId,
     pub generation: u64,
-    commands: crate::device_commands::DeviceCommands,
+    runner: Runner,
     pub node_path: PathBuf,
+    /// Loopback origin where expo-device-hub answers; for a remote host, the local end of the SSH forward.
     pub origin: String,
     pub pid: u32,
-    pub environment: Environment,
     pub serve_sim_ax_settings: Option<PathBuf>,
     pub serve_sim_cli: Option<PathBuf>,
 }
@@ -39,6 +47,10 @@ pub struct DeviceHostAgentReady {
     pub agent_device: crate::device_agent_daemon::AgentDeviceEndpoint,
 }
 impl DeviceHostReady {
+    /// A host whose devices are reached through an SSH-forwarded hub; commands run over the same SSH target.
+    pub fn remote(host_id: DeviceHostId, generation: u64, runner: crate::ssh_device_host::SshRunner, node_path: PathBuf, origin: String, serve_sim_ax_settings: Option<PathBuf>, serve_sim_cli: Option<PathBuf>) -> Self {
+        Self { host_id, generation, runner: Runner::Ssh(runner), node_path, origin, pid: 0, serve_sim_ax_settings, serve_sim_cli }
+    }
     pub async fn run_command(
         &self,
         command: &str,
@@ -55,8 +67,12 @@ impl DeviceHostReady {
         timeout: Duration,
         stdin: Option<Vec<u8>>,
     ) -> crate::device_commands::HostCommandOutput {
+        let (commands, environment) = match &self.runner {
+            Runner::Local { commands, environment } => (commands, environment),
+            Runner::Ssh(runner) => return runner.run(command, &args, timeout, stdin).await,
+        };
         let command = if command == "emulator" {
-            self.environment.get("ANDROID_HOME").map(|root| {
+            environment.get("ANDROID_HOME").map(|root| {
                 PathBuf::from(root).join("emulator").join(if cfg!(windows) {
                     "emulator.exe"
                 } else {
@@ -66,10 +82,10 @@ impl DeviceHostReady {
         } else {
             None
         }
-        .or_else(|| crate::acp_registry_spawn::resolve_executable(command, &self.environment))
+        .or_else(|| crate::acp_registry_spawn::resolve_executable(command, environment))
         .unwrap_or_else(|| command.into());
-        self.commands
-            .run_with_stdin(command, args, self.environment.clone(), timeout, stdin)
+        commands
+            .run_with_stdin(command, args, environment.clone(), timeout, stdin)
             .await
     }
 }
@@ -528,12 +544,12 @@ async fn spawn_hub(
     let ax = dist.join("simax/serve-sim-ax-settings");
     let cli = dist.join("serve-sim.js");
     let ready = DeviceHostReady {
+        host_id: DeviceHostId::new("local").unwrap(),
         generation: 0,
-        commands: crate::device_commands::DeviceCommands::new(),
+        runner: Runner::Local { commands: crate::device_commands::DeviceCommands::new(), environment: environment.clone() },
         node_path: node.into(),
         origin: format!("http://127.0.0.1:{port}"),
         pid,
-        environment: environment.clone(),
         serve_sim_ax_settings: tokio::fs::try_exists(&ax)
             .await
             .unwrap_or(false)
@@ -654,7 +670,10 @@ async fn supervise(
         if let Some(published) = &options.ready_published {
             published.send_replace(Some(ready.clone()));
         }
-        let ready_commands = ready.commands.clone();
+        let ready_commands = match &ready.runner {
+            Runner::Local { commands, .. } => commands.clone(),
+            Runner::Ssh(_) => unreachable!("the local host runs its commands here"),
+        };
         if let Some(reply) = reply.take() {
             let _ = reply.send(Ok(ready));
         }

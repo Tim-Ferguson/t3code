@@ -3,10 +3,8 @@
     "omitted": {},
     "pending": {},
     "partial": {
-      "device.configure": "Remote SSH device hosts are stored, and device.testHost probes them over SSH (ssh_device_host.rs), but the device service has the one local host: a remote host is never connected to, listed or opened.",
       "preview.clearProfile": "Deletes the profile's storage directory (server_browser_profiles.rs); the environment has no running server browser whose context for it needs closing first.",
-      "preview.open": "Tabs are tracked in memory and the desktop-runtime path works end to end (preview_manager.rs); a `server` runtime tab is recorded but no page is ever rendered for it, as the environment has no server browser yet (`serverBrowser` is not advertised).",
-      "server.getConfig": "OTLP export is not ported (the otlp*Enabled flags are false), and the local trace file holds the spans browsers exported but none of the server's own (trace_sink.rs). directEndpoints and remoteOpenTargets are served (environment_endpoints.rs)."
+      "preview.open": "Tabs are tracked in memory and the desktop-runtime path works end to end (preview_manager.rs); a `server` runtime tab is recorded but no page is ever rendered for it, as the environment has no server browser yet (`serverBrowser` is not advertised)."
     }
   },
   "http": {

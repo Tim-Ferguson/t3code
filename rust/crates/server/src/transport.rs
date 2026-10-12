@@ -1944,10 +1944,7 @@ async fn device_test_host(state: &ApiState, request: &RpcRequest, service: &crat
             Err(error) => Err(operation_error("DeviceHostError", &error.to_string())),
         };
     }
-    match service.inspect().await.hosts.into_iter().next() {
-        Some(summary) => Ok(serde_json::to_value(summary).unwrap()),
-        None => Err(operation_error("Error", "The local device host has no summary.")),
-    }
+    Ok(serde_json::to_value(service.local_summary().await).unwrap())
 }
 async fn device_rpc(state: &ApiState, request: &RpcRequest) -> Result<Value, Value> {
     let service=state.devices.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Device service is not configured."}))?;

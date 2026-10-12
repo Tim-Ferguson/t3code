@@ -91,3 +91,65 @@ async fn rpc_calls_are_spans_in_the_local_trace_file() {
     assert_eq!((lifecycle.len(), lifecycle[0]["exit"]["_tag"].as_str(), lifecycle[0]["attributes"]["rpc.aggregate"].as_str()), (1, Some("Interrupted"), Some("server")), "{spans:?}");
     h.finish().await;
 }
+
+/// A collector on a loopback socket that answers each request with the next status and reports the request's body and headers.
+async fn collector(statuses: Vec<u16>) -> (String, tokio::sync::mpsc::UnboundedReceiver<(Value, String)>) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/v1/traces", listener.local_addr().unwrap());
+    let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
+    tokio::spawn(async move {
+        let mut statuses = statuses.into_iter();
+        loop {
+            let Ok((mut socket, _)) = listener.accept().await else { return };
+            let mut request = Vec::new();
+            let mut chunk = [0u8; 8192];
+            let (head, body) = loop {
+                let count = socket.read(&mut chunk).await.unwrap_or(0);
+                if count == 0 {
+                    // A connection closed without a request (a client may open one it does not use) is not a post.
+                    break (String::new(), Vec::new());
+                }
+                request.extend_from_slice(&chunk[..count]);
+                let Some(end) = request.windows(4).position(|window| window == b"\r\n\r\n") else { continue };
+                let head = String::from_utf8_lossy(&request[..end]).into_owned();
+                let length = head.lines().find_map(|line| line.to_lowercase().strip_prefix("content-length:").and_then(|value| value.trim().parse::<usize>().ok())).unwrap_or(0);
+                if request.len() >= end + 4 + length {
+                    break (head, request[end + 4..end + 4 + length].to_vec());
+                }
+            };
+            // Only an export counts; anything else that finds this port is not the collector's business.
+            if !head.starts_with("POST /v1/traces") {
+                let _ = socket.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await;
+                continue;
+            }
+            let status = statuses.next().unwrap_or(200);
+            let _ = sender.send((serde_json::from_slice(&body).unwrap_or(Value::Null), head.to_lowercase()));
+            let _ = socket.write_all(format!("HTTP/1.1 {status} X\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{{}}").as_bytes()).await;
+        }
+    });
+    (url, receiver)
+}
+
+/// With a traces endpoint, a browser's export is forwarded to it as it came, with the configured headers; a collector that refuses it
+/// makes the answer 502, and the server's config says traces are exported, and where.
+#[tokio::test]
+async fn a_browser_export_is_forwarded_to_the_traces_endpoint_and_a_refusal_is_a_bad_gateway() {
+    use t3_server::{otlp::Otlp, otlp_config::{Endpoint, Protocol}};
+    let h = harness_with_config().await;
+    let (url, mut collected) = collector(vec![200, 500]).await;
+    let endpoint = Endpoint { url: url.clone(), protocol: Protocol::Json, headers: [("x-key".to_owned(), "secret".to_owned())].into_iter().collect(), interval: std::time::Duration::from_secs(10) };
+    t3_server::otlp::install(&h.store, Otlp { traces_endpoint: Some(endpoint), ..Default::default() });
+    let client = reqwest::Client::new();
+    let post = |body: Value| client.post(format!("http://{}{OTLP_TRACES_PROXY_PATH}", h.address)).bearer_auth(&h.operator).header("content-type", "application/json").body(body.to_string()).send();
+    assert_eq!(post(export("forwarded")).await.unwrap().status(), 204);
+    let (body, head) = tokio::time::timeout(t3_server::test_support::HANG_BOUND, collected.recv()).await.unwrap().unwrap();
+    assert_eq!(body, export("forwarded"));
+    assert!(head.contains("x-key: secret") && head.contains("content-type: application/json"), "{head}");
+    assert_eq!(post(export("refused")).await.unwrap().status(), 502);
+    let mut socket = h.connect(&h.operator).await;
+    let config = rpc_support::rpc(&mut socket, 1, "server.getConfig", json!({})).await;
+    let observability = &rpc_support::success(&config)["observability"];
+    assert_eq!((observability["otlpTracesEnabled"].clone(), observability["otlpTracesUrl"].clone(), observability["otlpMetricsEnabled"].clone()), (json!(true), json!(url), json!(false)));
+    h.finish().await;
+}

@@ -203,6 +203,11 @@ mod preview_automation_broker_tests;
 
 pub mod mcp_preview;
 
+pub mod mcp_html;
+
+#[cfg(test)]
+mod mcp_html_tests;
+
 #[cfg(test)]
 mod mcp_preview_tests;
 
@@ -210,6 +215,39 @@ mod mcp_preview_tests;
 mod preview_rpc_tests;
 
 pub mod server_browser_profiles;
+
+pub mod preview_browser_host;
+
+#[cfg(test)]
+mod preview_browser_host_tests;
+
+pub mod cdp;
+
+#[cfg(test)]
+mod cdp_fake;
+
+#[cfg(test)]
+mod cdp_tests;
+
+pub mod public_proxy;
+
+#[cfg(test)]
+mod public_proxy_tests;
+
+pub mod headless_chrome;
+
+#[cfg(test)]
+mod headless_chrome_tests;
+
+pub mod html_render;
+
+#[cfg(test)]
+mod html_render_tests;
+
+pub mod html_render_shared;
+
+#[cfg(test)]
+mod html_render_shared_tests;
 
 pub mod resource_model;
 
@@ -260,6 +298,9 @@ mod acp_registry_rpc_tests;
 pub mod server_settings_migrations;
 
 pub mod background_policy;
+pub mod device_host;
+pub mod otlp;
+pub mod otlp_config;
 pub mod device_host_resolver;
 #[cfg(test)]
 mod device_host_rpc_tests;

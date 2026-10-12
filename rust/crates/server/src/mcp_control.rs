@@ -243,6 +243,8 @@ impl McpControlTools {
             "t3_project_read" => self.project_read(scope, arguments),
             // The snapshot answers with the whole result: the screenshot goes out as an image block, not as JSON.
             "preview_snapshot" => return Ok(self.preview_snapshot(scope, arguments).await),
+            // So does the HTML preview.
+            "html_preview" => return Ok(self.html_preview(scope, arguments).await),
             // The tools ported after the first group, and the ones this server answers as unavailable.
             _ => Box::pin(self.extended(scope, name, arguments)).await,
         };

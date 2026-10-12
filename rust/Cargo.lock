@@ -5980,8 +5980,11 @@ name = "t3-desktop"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "base64 0.22.1",
  "libc",
  "rand 0.9.5",
+ "ring",
+ "security-framework",
  "serde",
  "serde_json",
  "t3-client",
@@ -6053,6 +6056,7 @@ dependencies = [
  "indexmap",
  "libc",
  "notify 8.2.0",
+ "percent-encoding",
  "portable-pty",
  "qrcodegen",
  "rand 0.9.5",
@@ -6115,6 +6119,7 @@ dependencies = [
  "pulldown-cmark",
  "reqwest",
  "rfd",
+ "ring",
  "serde",
  "serde_json",
  "sha2",

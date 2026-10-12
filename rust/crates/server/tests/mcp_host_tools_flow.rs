@@ -194,12 +194,60 @@ async fn tools_with_no_service_here_answer_as_the_original_does_without_a_host_a
     let tabs = h.ok(&browser, "t3_preview_list", json!({})).await;
     assert_eq!((tabs["sessions"].clone(), tabs["nextCursor"].clone()), (json!([]), Value::Null));
     assert_eq!(h.ok(&browser, "t3_preview_close", json!({"tabId":"preview-tab-1"})).await, json!({}));
-    // The HTML tools need a headless browser this server does not have.
-    let (failed, text) = h.text(&caller, "html_preview", json!({"html":"<p>x</p>"})).await;
-    assert!(failed && text.starts_with("This T3 server cannot render an HTML preview: it has no headless browser. Do not retry."), "{text}");
-    let render = h.refused(&caller, "html_render", json!({"html":"<p>x</p>","title":"x","height":300})).await;
-    assert_eq!(render["code"], "orchestration_error");
-    assert!(render["message"].as_str().unwrap().contains("Do not retry"), "{render}");
+    h.finish().await;
+}
+
+/// A browser source that has nothing to give, so no test of the HTML tools can start a download or a browser.
+struct NoBrowser;
+#[async_trait::async_trait]
+impl t3_server::html_render::BrowserSource for NoBrowser {
+    fn installed(&self) -> Option<std::path::PathBuf> {
+        None
+    }
+    async fn executable(&self) -> Result<std::path::PathBuf, t3_server::preview_browser_install::PreviewBrowserError> {
+        Err(t3_server::preview_browser_install::PreviewBrowserError::Unsupported { platform: "test".into(), arch: "fixture".into() })
+    }
+}
+struct NoLauncher;
+#[async_trait::async_trait]
+impl t3_server::headless_chrome::BrowserLauncher for NoLauncher {
+    async fn launch(&self, _: &t3_server::headless_chrome::LaunchInput) -> Result<t3_server::headless_chrome::LaunchedBrowser, t3_server::headless_chrome::HtmlRenderBrowserError> {
+        Err(t3_server::headless_chrome::HtmlRenderBrowserError::new("this test starts no browser"))
+    }
+}
+
+/// The HTML tools over the real MCP transport, with no browser to be had: a page is published, stored as an attachment of the calling thread,
+/// without heights; and a preview says the browser is not there.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_html_tools_publish_a_page_to_the_thread_and_report_a_browser_that_is_not_there() {
+    let h = Harness::new().await;
+    let attachments = t3_server::attachment_service::AttachmentService::for_store(&h.store).unwrap().attachments_dir().to_owned();
+    t3_server::html_render::provide_for_store(
+        &h.store,
+        t3_server::html_render::HtmlRender::new(t3_server::html_render::HtmlRenderOptions { browser: std::sync::Arc::new(NoBrowser), launcher: std::sync::Arc::new(NoLauncher), attachments_dir: attachments.clone(), no_sandbox: false, setup_command: "sudo t3 browser setup".into() }),
+    );
+    let parent = h.running_thread("parent", "full-access", "default").await;
+    // The tools need no browser capability: they are the caller's own.
+    let caller = h.caller(&parent).await;
+    let published = h.ok(&caller, "html_render", json!({"html":"<p>Quarterly revenue</p>","title":"  Revenue ","height":9000})).await;
+    let reference = published["htmlRender"].clone();
+    let id = reference["attachmentId"].as_str().unwrap();
+    assert!(id.starts_with("parent-") && id.ends_with("-html"), "{id}");
+    assert_eq!((reference["title"].as_str(), reference["height"].as_i64(), reference.get("heights")), (Some("Revenue"), Some(2000), None));
+    assert_eq!(published["message"], "Shown to the reader above your reply. Don't mention or describe the page; reply with only what it doesn't already say.");
+    let stored = std::fs::read_to_string(attachments.join(format!("{id}.html"))).unwrap();
+    assert!(stored.contains("<style id=\"t3-theme\">") && stored.contains("<p>Quarterly revenue</p>"));
+    // A page that names an image the agent cannot have: refused as invalid, and nothing is stored.
+    let refused = h.refused(&caller, "html_render", json!({"html":"<img src=\"/nonexistent/t3-missing.png\">","title":"x","height":300})).await;
+    assert_eq!((refused["_tag"].as_str(), refused["code"].as_str()), (Some("OrchestratorMcpFailure"), Some("invalid_request")));
+    assert!(refused["message"].as_str().unwrap().starts_with("These local images could not be read: /nonexistent/t3-missing.png."), "{refused}");
+    assert_eq!(std::fs::read_dir(&attachments).unwrap().filter(|entry| entry.as_ref().unwrap().path().extension().is_some_and(|extension| extension == "html")).count(), 1);
+    // The preview needs the browser to be installed, and says what is wrong in the shape an image tool fails in.
+    let response = h.rpc(&caller, "tools/call", json!({"name":"html_preview","arguments":{"html":"<p>x</p>"}})).await;
+    let message = "T3's headless browser is not available on test-fixture: Chrome for Testing has no headless shell for it.";
+    assert_eq!(response["result"]["isError"], true, "{response}");
+    assert_eq!(response["result"]["structuredContent"], json!({"error":{"_tag":"OrchestratorMcpFailure","operation":"preview","failureCount":1,"message":message}}));
+    assert_eq!(response["result"]["content"], json!([{"type":"text","text":message}]));
     h.finish().await;
 }
 

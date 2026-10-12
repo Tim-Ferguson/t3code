@@ -309,20 +309,6 @@ fn apply_bootstrap(
     if options.tailscale_serve_port.is_none() {
         options.tailscale_serve_port = u16::try_from(envelope.tailscale_serve_port.0).ok().filter(|port| *port >= 1);
     }
-    if [
-        envelope.otlp_traces_url.as_ref(),
-        envelope.otlp_metrics_url.as_ref(),
-        envelope.otlp_logs_url.as_ref(),
-    ]
-    .into_iter()
-    .flatten()
-    .flatten()
-    .any(|url| !url.is_empty())
-    {
-        return Err(
-            "Desktop bootstrap requests OTLP export; this service is not ported yet".into(),
-        );
-    }
     if envelope.desktop_browser_fd.is_some() || envelope.desktop_browser_control_fd.is_some() {
         return Err("Desktop bootstrap browser IPC is not ported yet".into());
     }
@@ -925,9 +911,15 @@ async fn run(
     descriptors: DesktopDescriptors,
     parent: i32,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .init();
+    {
+        use tracing_subscriber::prelude::*;
+        // The console writes what the filter lets through, and the OTLP log exporter (once one is installed) takes the same events.
+        tracing_subscriber::registry()
+            .with(tracing_subscriber::EnvFilter::from_default_env())
+            .with(tracing_subscriber::fmt::layer())
+            .with(t3_server::otlp::LogLayer)
+            .init();
+    }
     // Before anything uses the process's source control host.
     if options.fixture {
         t3_server::fixture::install(options.fixture_github_api_origin.as_deref(), options.fixture_acp_registry.as_deref())?;
@@ -1238,13 +1230,14 @@ async fn run(
             t3_server::local_device_host::LocalDeviceHostOptions::host(state_dir.clone()),
             tools,
         );
-        Some(
-            t3_server::device_service::DeviceService::new(settings.clone(), host)
-                .await
-                .map_err(|error| {
-                    std::io::Error::other(serde_json::to_value(error).unwrap().to_string())
-                })?,
-        )
+        let service = t3_server::device_service::DeviceService::new(settings.clone(), host)
+            .await
+            .map_err(|error| {
+                std::io::Error::other(serde_json::to_value(error).unwrap().to_string())
+            })?;
+        // The SSH hosts settings name, kept in step with settings; nothing connects to one until a client asks for devices.
+        service.manage_ssh_hosts(device_hosts.clone()).await;
+        Some(service)
     } else {
         None
     };
@@ -1259,6 +1252,34 @@ async fn run(
             t3_server::trace_sink::install(&store, sink);
         }
         Err(error) => tracing::warn!(%error, "The local trace file could not be opened; no trace is written"),
+    }
+    // OTLP export of traces, metrics and logs: the environment, then the desktop's bootstrap, then settings decide (`resolveServerConfig`).
+    let otlp = {
+        let url = |value: Option<&Option<String>>| value.cloned().flatten();
+        let bootstrap = options.bootstrap.as_ref();
+        let persisted = match &settings_service {
+            Some(settings) => settings.snapshot().await.ok().map(|settings| {
+                let text = |value: &str| (!value.trim().is_empty()).then(|| value.trim().to_owned());
+                [text(settings.observability.otlp_traces_url.as_str()), text(settings.observability.otlp_metrics_url.as_str()), text(settings.observability.otlp_logs_url.as_str())]
+            }),
+            None => None,
+        }
+        .unwrap_or([None, None, None]);
+        let configuration = t3_server::otlp_config::resolve(
+            &|name| std::env::var(name).ok(),
+            [url(bootstrap.map(|envelope| &envelope.otlp_traces_url).and_then(Option::as_ref)), url(bootstrap.map(|envelope| &envelope.otlp_metrics_url).and_then(Option::as_ref)), url(bootstrap.map(|envelope| &envelope.otlp_logs_url).and_then(Option::as_ref))],
+            persisted,
+        );
+        let mut warnings = configuration.warnings.clone();
+        let otlp = t3_server::otlp::Otlp::start(&configuration, &options.mode, &mut warnings);
+        for warning in warnings {
+            tracing::warn!("{warning}");
+        }
+        t3_server::otlp::install(&store, otlp.clone());
+        otlp
+    };
+    if let (Some(sink), Some(exporter)) = (t3_server::trace_sink::current(&store), &otlp.traces) {
+        sink.set_otlp(exporter.clone());
     }
     let trace_sink = t3_server::trace_sink::current(&store);
     // What providers say natively is logged per thread under `<logs>/provider`; a log that cannot be opened is logged and left out.
@@ -1359,6 +1380,7 @@ async fn run(
     let tailscale = options.tailscale_serve.unwrap_or(false).then(|| {
         t3_server::connect::TailscaleServe::activate(std::sync::Arc::new(t3_remote::tailscale::Tailscale::new(cfg!(windows))), local_port, options.tailscale_serve_port.unwrap_or(443))
     });
+    let html_render_store = store.clone();
     let state = ApiState {
         settings: settings_service.clone(),
         store,
@@ -1412,9 +1434,11 @@ async fn run(
         cleanup.shutdown().await;
     }
     mcp.shutdown().await;
+    t3_server::html_render::shutdown(&html_render_store);
     if let Some(background) = background {
         background.shutdown().await;
     }
+    otlp.shutdown().await;
     device_hosts.shutdown().await;
     if let Some(devices) = devices {
         devices.shutdown().await;

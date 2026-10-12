@@ -10,6 +10,8 @@ tokio-tungstenite.workspace = true
 notify.workspace = true
 indexmap.workspace = true
 url.workspace = true
+# Decodes the percent-encoded values of the OTEL variables.
+percent-encoding = "2"
 reqwest.workspace = true
 fs2.workspace = true
 libc.workspace = true

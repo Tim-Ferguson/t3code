@@ -372,7 +372,7 @@ fn app(value: &Value) -> Option<Value> {
     }
     Some(Value::Object(output))
 }
-fn compact(value: &Value) -> Option<Value> {
+pub(crate) fn compact(value: &Value) -> Option<Value> {
     let mut budget = Budget {
         bytes: 16384,
         nodes: 128,

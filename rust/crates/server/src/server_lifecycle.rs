@@ -5,7 +5,7 @@
 //! the services over it do, and reach the stream through it.
 use crate::persistence::Store;
 use serde_json::{Value, json};
-use std::{collections::HashMap, sync::Mutex};
+use std::sync::Mutex;
 
 struct State {
     sequence: u64,
@@ -14,12 +14,17 @@ struct State {
     live: tokio::sync::broadcast::Sender<Value>,
 }
 
-static LIFECYCLES: Mutex<Option<HashMap<usize, State>>> = Mutex::new(None);
+/// The events belong to the store, as the services over it do, so they end with it: a store that later takes a dropped store's place in
+/// memory starts with none.
+struct Lifecycle(Mutex<State>);
 
+fn lifecycle(store: &Store) -> std::sync::Arc<Lifecycle> {
+    store.extension(|| Lifecycle(Mutex::new(State { sequence: 0, events: vec![], live: tokio::sync::broadcast::channel(64).0 })))
+}
 fn with<R>(store: &Store, f: impl FnOnce(&mut State) -> R) -> R {
-    let mut guard = LIFECYCLES.lock().unwrap();
-    let state = guard.get_or_insert_with(HashMap::new).entry(store.identity()).or_insert_with(|| State { sequence: 0, events: vec![], live: tokio::sync::broadcast::channel(64).0 });
-    f(state)
+    let lifecycle = lifecycle(store);
+    let mut state = lifecycle.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    f(&mut state)
 }
 
 /// `ServerLifecycleEvents.publish`: numbers the event and offers it to every subscriber.
@@ -85,5 +90,24 @@ mod tests {
         assert_eq!(sequence, 3);
         publish(&store, "legacyThreadMigration", json!({"status":"complete","totalThreadCount":0}));
         assert_eq!(live.try_recv().unwrap()["sequence"], 4);
+    }
+
+    /// The events end with their store, so a store that takes a dropped one's place in memory cannot inherit them.
+    #[test]
+    fn a_dropped_stores_events_are_dropped_with_it_and_a_store_at_its_identity_starts_empty() {
+        let first = Store::memory().unwrap();
+        publish(&first, "welcome", json!({"cwd":"/a"}));
+        let held = std::sync::Arc::downgrade(&lifecycle(&first));
+        let identity = first.identity();
+        drop(first);
+        assert!(held.upgrade().is_none());
+        // Whether or not the allocator hands the address back, no store starts with the dropped one's events.
+        let mut reused = false;
+        for _ in 0..64 {
+            let next = Store::memory().unwrap();
+            reused |= next.identity() == identity;
+            assert!(subscribe(&next).0.is_empty());
+        }
+        let _ = reused;
     }
 }

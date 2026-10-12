@@ -4,9 +4,9 @@
 //! Records are appended to `<logs>/server.trace.ndjson` in batches, and the file rotates by size like the other logs. This is
 //! what `server.getTraceDiagnostics` (`trace_diagnostics.rs`) folds into the diagnostics page.
 //!
-//! Divergence: the original also writes a record for every Effect span the server itself runs, and forwards the browser's spans
-//! to the OTLP traces endpoint when one is configured. This server runs no spans of its own to record, and exports nothing (its
-//! OTLP settings are refused or ignored, see `main.rs`), so the file holds the spans browsers exported and the route answers 204.
+//! Divergence: the original also writes a record for every Effect span the server itself runs. This server's own spans are the
+//! `ws.rpc.*` ones (`rpc_spans.rs`), which are written here and exported over OTLP when a traces endpoint is configured (`otlp.rs`); the
+//! browsers' spans are forwarded to that endpoint as they arrive.
 use crate::{persistence::Store, transport::{ApiState, authenticate, require}};
 use axum::{
     Router,
@@ -114,6 +114,8 @@ struct Inner {
     dropped: usize,
     failing: bool,
     reported: bool,
+    /// The OTLP traces exporter, which takes the server's own spans (`effect-span` records) as well as the file does.
+    otlp: Option<crate::otlp::Exporter>,
 }
 
 /// Batches trace records and appends them to the rotating file.
@@ -123,7 +125,7 @@ pub struct TraceSink(Arc<Mutex<Inner>>);
 impl TraceSink {
     pub fn open(path: &Path, max_bytes: u64, max_files: usize) -> std::io::Result<Self> {
         let file = RotatingFile::open(path.to_path_buf(), max_bytes.max(1), max_files.max(1))?;
-        Ok(Self(Arc::new(Mutex::new(Inner { file, buffer: Vec::new(), dropped: 0, failing: false, reported: false }))))
+        Ok(Self(Arc::new(Mutex::new(Inner { file, buffer: Vec::new(), dropped: 0, failing: false, reported: false, otlp: None }))))
     }
 
     /// Writes batches on the window until the sink is dropped.
@@ -138,9 +140,17 @@ impl TraceSink {
         })
     }
 
+    /// Exports the server's own spans from here on (`OtlpTracer` as the local tracer's delegate).
+    pub fn set_otlp(&self, exporter: crate::otlp::Exporter) {
+        self.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).otlp = Some(exporter);
+    }
+
     pub fn push(&self, record: &Value) {
         let Ok(line) = serde_json::to_string(record) else { return };
         let mut state = self.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let (Some(exporter), Some("effect-span")) = (&state.otlp, record["type"].as_str()) {
+            exporter.push(crate::otlp::span_from_record(record));
+        }
         state.buffer.push(format!("{line}\n"));
         if state.buffer.len() >= FLUSH_BUFFER_THRESHOLD {
             Self::flush_locked(&mut state);
@@ -205,6 +215,7 @@ pub fn overlay_config(store: &Store, config: &mut Value) {
     if current(store).is_some() {
         config["observability"]["localTracingEnabled"] = json!(true);
     }
+    crate::otlp::overlay_config(store, config);
 }
 
 // ---- OTLP spans as trace records (`decodeOtlpTraceRecords`) --------------------------------------
@@ -403,8 +414,8 @@ pub fn routes() -> Router<ApiState> {
     Router::new().route("/api/observability/v1/traces", post(handle))
 }
 
-/// A browser's span export: recorded to the local trace file, and answered 204. (The original forwards it to the OTLP traces
-/// endpoint when one is configured; none is here.) A payload that does not decode is logged and dropped, as the original does.
+/// A browser's span export: recorded to the local trace file, forwarded to the OTLP traces endpoint when one is configured, and
+/// answered 204 (502 when the collector refused it). A payload that does not decode is logged and dropped, as the original does.
 async fn handle(State(state): State<ApiState>, headers: HeaderMap, body: Body) -> Response {
     let session = match authenticate(&state, &headers) {
         Ok(session) => session,
@@ -429,7 +440,16 @@ async fn handle(State(state): State<ApiState>, headers: HeaderMap, body: Body) -
         }
         Err(detail) => tracing::warn!(%detail, "Failed to decode browser OTLP traces"),
     }
-    StatusCode::NO_CONTENT.into_response()
+    let Some(endpoint) = crate::otlp::current(&state.store).and_then(|otlp| otlp.traces_endpoint) else {
+        return StatusCode::NO_CONTENT.into_response();
+    };
+    match crate::otlp::forward(&endpoint, &payload).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(detail) => {
+            tracing::warn!(%detail, otlp_traces_url = %endpoint.url, "Failed to export browser OTLP traces");
+            (StatusCode::BAD_GATEWAY, "Trace export failed.").into_response()
+        }
+    }
 }
 
 #[cfg(test)]

@@ -43,7 +43,7 @@ the envelope; `T3CODE_HOME` and envelope `t3Home` select `<home>/userdata`, whil
 `--state-dir` selects its directory directly. Desktop bootstrap credentials are
 reusable and support the original rotating-secret windows. The envelope also
 supplies telemetry channels and an explicit resource-monitor executable.
-Browser IPC and OTLP requests currently fail explicitly.
+Browser IPC requests currently fail explicitly.
 Automatic browser launching remains unimplemented, so `noBrowser` has no
 launcher to control. Windows inherited descriptors and the desktop producer
 remain pending. Host resources are
@@ -90,7 +90,7 @@ the hub. Their tests serve a scripted hub from a loopback socket, with the answe
 (`tools/generate_usage_limit_source_fixtures.mjs`); Codex's `codexRateLimitsToLimits` and `codexPlanLabel` are ported there too
 (`codex_usage_limits.rs`; the provider probe reads `account/rateLimits/read`, and a session's `account/rateLimits/updated` updates the instance's windows). A thread stream sends the newest running update of each tool call within a 50 ms window
 (`thread_live_coalescer.rs`), and the server writes the spans browsers export, and one `ws.rpc.<method>` span per RPC call (`rpc_spans.rs`, with the original's
-labels; a subscription's lasts until it ends or is interrupted), to `<logs>/server.trace.ndjson` (`trace_sink.rs`; nothing is exported over OTLP). `t3-server serve --fixture --fixture-acp-registry FILE` reads the ACP registry catalog from a file instead of
+labels; a subscription's lasts until it ends or is interrupted), to `<logs>/server.trace.ndjson` (`trace_sink.rs`). `t3-server serve --fixture --fixture-acp-registry FILE` reads the ACP registry catalog from a file instead of
 `cdn.agentclientprotocol.com`, for tests of a client (an error without `--fixture`). Usage keeps what it parsed of each transcript in
 `usage-scan-cache-v5.json` (`usage_scan_cache.rs`, the original's file and document, so a state directory both servers read has one cache): a transcript that
 has not changed is not read again, one that grew is read from where the last parse stopped (guarded by a hash of the bytes before that offset),
@@ -108,8 +108,15 @@ the secret store under the original's names, refresh, sign-out, profile export a
 served. A managed Codex instance has a sign-in controller in `provider_auth_service.rs`, lists itself from the sign-in (`codex_managed.rs`), and its sessions run the installed
 `codex` with the access token and the token-sharing launch configuration in a shadow home (`codex_home.rs`); importing a profile ends the sessions on the old tokens
 (`AuthFlow::adopt_credentials`). Text generation on a managed instance is not ported. `device.testHost` probes a
-remote host over SSH (`ssh_device_host.rs`); the device service itself has the one local host. Still open on the server: the preview/browser host registry,
-OTLP export, remote device hosts beyond the probe, Cursor and analytics.
+remote host over SSH (`ssh_device_host.rs`). Still open on the server: the preview/browser host registry, Cursor and analytics.
+The device service runs the local host and every SSH host settings name (`device_service.rs`, `device_host.rs`; a host that resolves to this machine is left out): each host has its
+own readiness, status, devices, sessions and agent-device config, an SSH host is started the first time a client lists devices, forwards its hub and agent-device ports to
+loopback over `ssh -N -L`, reconnects (1 s doubling to 30 s) when the forward drops or a helper stops answering on a 10 s check, and is stopped and its config removed when settings
+stop naming it. One host's lifecycle holds the service's lock while it installs and starts, as the original's does. The hosts' forwarded ports are reachable by any local user, as the
+local hub is. Tests use a fake `ssh` and a loopback hub (`tests/fixtures/fake-ssh-device.py`, `device_multi_host_tests.rs`).
+OTLP export (`otlp.rs`, `otlp_config.rs`) follows the original's exporters and endpoint resolution (`T3CODE_OTLP_*`, the `OTEL_*` variables, the desktop bootstrap, then settings; `http/json` by default):
+traces (the server's `ws.rpc.*` spans, and a browser's export forwarded as it came, answered 502 when the collector refuses it), logs (the server's `tracing` events, without the original's `fiberId`)
+and metrics (the RPC counter and timer only). `http/protobuf` is not encoded: a signal that asks for it is not exported, and a warning says so. `tools/generate_otlp_fixtures.mjs` makes the original's bodies.
 Responses are compressed as the original's router does (`response_compression.rs`: brotli, gzip or deflate by `Accept-Encoding`, text-like types of
 1024 bytes or more); a body of unknown length is sent as it is.
 Writing a streamed delta costs what the delta is, not what the thread is: a thread is a small skeleton (`rust_projections`) and one row per element of
@@ -121,8 +128,7 @@ waiting and sends a shell only when it changed (`skipUnchangedThreadShells`). Pr
 Device-host settings resolve SSH aliases without connecting, exclude only self
 targets, and preserve proxies, forwarded ports and unresolved entries. Local device
 state and session lifecycle, consent configuration and agent-daemon bootstrap,
-reuse and shutdown are implemented. Other toolkit injection pipelines and remote
-SSH hosts remain unfinished; the guarded launcher uses an externally installed
+reuse and shutdown are implemented. Other toolkit injection pipelines remain unfinished; the guarded launcher uses an externally installed
 agent-device CLI.
 
 Existing state of the original server is imported once into this server's own store
@@ -477,3 +483,13 @@ menu: the destructive item's trash icon, and the icons the page draws.
 The server is started with the environment of your login shell (`$SHELL -ilc`, then `/bin/zsh` or `/bin/bash`; `launchctl getenv
 PATH` on macOS as a last resort), so provider tools on your `PATH` are found when the app is opened from the Finder. The shell is
 asked once per run, for at most five seconds. Windows is not covered yet: the server cannot be started there by this app.
+
+## HTML renders
+
+`html_render` and `html_preview` run (`mcp_html.rs`, `html_render.rs`). A page's local images are inlined, the theme bootstrap is injected, and the pinned headless shell renders and measures it over the DevTools protocol (`cdp.rs`, `headless_chrome.rs`: pipe or loopback WebSocket). The browser's every connection goes through a SOCKS5 proxy that only reaches public addresses (`public_proxy.rs`), slightly stricter than the original's (it also refuses IPv4-translated and site-local IPv6 and the IETF, documentation and 6to4-relay IPv4 ranges). A published page is removed with its thread. Unix only; the host-setup command it names (`browser setup`) is not built. Still open on the server: the server browser itself and the preview-stream routes.
+
+## Several environments
+
+The window keeps one connection per environment (`crates/ui/src/links.rs`). The open environment's state is the model's flat fields; every other connected environment's is parked in `UiModel::parked` and keeps receiving its shell and configuration. Switching swaps the two without asking any server for anything but the open thread. A supervisor per link reconnects with the original's backoff (`t3_client::supervisor`), tries the environment's other routes first, and can be told to retry now. The sidebar's projects, search, palette and notifications still read the open environment only.
+
+Saved connections are the original's `ConnectionCatalogDocument` (`t3_client::catalog`). Web: `localStorage` key `t3code:rust-connection-catalog:v1`, plaintext, as the original's IndexedDB document is. Desktop: `<data dir>/connection-catalog.json`, AES-256-GCM, key in the macOS keychain (service `T3 Code (Rust) saved connections`) or, when `T3_UI_DATA_DIR` is set, in `connection-catalog.key` beside it (mode 0600, no protection against the same user). Other desktop platforms save nothing.

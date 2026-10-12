@@ -1,11 +1,8 @@
-//! Dispatch for the tools ported after the first group, and the answer for the tools this server has
-//! no service for. Every tool of the original is listed to the model, as the original lists them; the
-//! ones in `UNAVAILABLE` say so when called, in the shape of the failure the original gives when the
-//! capability is missing from the environment.
+//! Dispatch for the tools ported after the first group. Every tool of the original is listed to the model, as the original lists them.
 use crate::{
-    mcp_access::{self, Access},
+    mcp_access,
     mcp_control::McpControlTools,
-    mcp_invocation::{InvocationScope, McpCapability, McpFailure, refusal},
+    mcp_invocation::{InvocationScope, McpCapability, McpFailure},
 };
 use serde_json::{Value, json};
 
@@ -74,30 +71,18 @@ pub(crate) const IMPLEMENTED: &[&str] = &[
     "preview_wait_for",
     "preview_recording_start",
     "preview_recording_stop",
+    // HTML renders: a page checked in the headless browser, and a page published into the thread (`mcp_html.rs`).
+    "html_preview",
+    "html_render",
 ];
 
-/// Whether an unavailable tool only reads (`readsAsCaller`) or acts as the calling thread (`actsAsCaller`).
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub(crate) enum Gate {
-    Reads,
-    Acts,
-}
-
-/// What a tool with no service says. Each row is the tool and its gate in the original. The HTML tools fail as the original's HTML renderer
-/// does when it has no browser.
-pub(crate) const UNAVAILABLE: &[(&str, Gate)] = &[("html_preview", Gate::Reads), ("html_render", Gate::Acts)];
-
-pub(crate) fn unavailable_tool(name: &str) -> Option<&'static (&'static str, Gate)> {
-    UNAVAILABLE.iter().find(|(tool, ..)| *tool == name)
-}
-
 /// The text the model reads for a failed call. The original declares most tools' failure as a
-/// returned value, which the transport writes as the failure's JSON. The preview tools, the pull
-/// request tools and the HTML preview use Effect's default failure mode instead, and the transport
-/// writes the failure's own `message`; the preview snapshot prefixes it.
+/// returned value, which the transport writes as the failure's JSON. The preview tools and the pull
+/// request tools use Effect's default failure mode instead, and the transport writes the failure's
+/// own `message`; the preview snapshot prefixes it, and the two image tools write their own result.
 pub(crate) fn failure_text(name: &str, error: &McpFailure) -> String {
     match name {
-        "html_preview" | "link_pull_request" | "unlink_pull_request" | "list_thread_pull_requests" | "watch_pull_request" | "unwatch_pull_request" => error.to_string(),
+        "link_pull_request" | "unlink_pull_request" | "list_thread_pull_requests" | "watch_pull_request" | "unwatch_pull_request" => error.to_string(),
         _ if name.starts_with("preview_") => error.to_string(),
         _ => error.0.to_string(),
     }
@@ -137,19 +122,9 @@ impl McpControlTools {
             "t3_preview_list" => self.preview_list(scope, args),
             "t3_preview_close" => Box::pin(self.preview_close(scope, args)).await,
             other if crate::mcp_preview::PREVIEW_TOOLS.contains(&other) => Box::pin(self.preview_tool(scope, other, args)).await,
-            other => match unavailable_tool(other) {
-                Some((_, gate)) => self.answer_unavailable(scope, other, *gate),
-                None => Err(mcp_access::unavailable()),
-            },
+            "html_render" => Box::pin(self.html_render(scope, args)).await,
+            _ => Err(mcp_access::unavailable()),
         }
-    }
-
-    /// A tool whose service this server does not have. It runs the original's gate first, so the refusals a caller would meet anyway still
-    /// come first, then says what the original says.
-    fn answer_unavailable(&self, scope: &InvocationScope, name: &str, gate: Gate) -> Out {
-        mcp_access::check_store(&self.store, scope, if gate == Gate::Reads { Access::ReadsAsCaller } else { Access::ActsAsCaller }, &[])?;
-        let what = if name == "html_preview" { "render an HTML preview" } else { "publish an HTML render" };
-        Err(refusal("orchestration_error", &format!("This T3 server cannot {what}: it has no headless browser. Do not retry. To check a page, use a headless browser from the shell, such as Playwright, or curl.")))
     }
 }
 
@@ -166,29 +141,22 @@ mod tests {
     use std::sync::Arc;
     use t3_contracts::AuthMcpClientAccess;
 
-    /// Every tool of the original that the orchestrator serves is accounted for exactly once, and the
-    /// ones answered as unavailable are exactly these, for exactly these reasons.
+    /// Every tool of the original that the orchestrator serves has a handler, exactly one.
     #[test]
-    fn every_listed_tool_is_handled_or_answered_as_unavailable() {
+    fn every_listed_tool_is_handled() {
         let listed: Vec<String> = McpControlTools::catalog().iter().map(|tool| tool["name"].as_str().unwrap().to_owned()).collect();
         assert_eq!(listed.len(), 76);
         for name in &listed {
-            let handled = McpControlTools::handled(name);
-            let unavailable = unavailable_tool(name).is_some();
-            assert!(handled != unavailable, "{name} must be handled or answered as unavailable, exactly one");
+            assert!(McpControlTools::handled(name), "{name} has no handler");
         }
-        assert_eq!(crate::mcp_control::HANDLED.len() + IMPLEMENTED.len(), 74);
-        assert_eq!(IMPLEMENTED.len(), 54);
-        // Exactly the HTML tools are answered as unavailable on this server: they need a headless browser it does not have yet.
-        let withheld: Vec<&str> = UNAVAILABLE.iter().map(|(name, ..)| *name).collect();
-        assert_eq!(withheld, ["html_preview", "html_render"]);
+        assert_eq!(crate::mcp_control::HANDLED.len() + IMPLEMENTED.len(), 76);
+        assert_eq!(IMPLEMENTED.len(), 56);
         // Every browser tool has a handler, and the handler module names the same ones.
         let preview: Vec<&str> = IMPLEMENTED.iter().copied().filter(|name| name.starts_with("preview_")).collect();
         assert_eq!(preview.len(), 19);
         assert_eq!(preview, crate::mcp_preview::PREVIEW_TOOLS);
-        // Reads and acts follow the original's declaration for the tool that only reads.
-        let reads: Vec<&str> = UNAVAILABLE.iter().filter(|(_, gate)| *gate == Gate::Reads).map(|(name, ..)| *name).collect();
-        assert_eq!(reads, ["html_preview"]);
+        // The HTML tools are the last two, and the handler module names the same ones.
+        assert_eq!(&IMPLEMENTED[IMPLEMENTED.len() - 2..], crate::mcp_html::HTML_TOOLS);
     }
 
     fn tools() -> (McpControlTools, InvocationScope) {

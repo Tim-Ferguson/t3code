@@ -1,4 +1,4 @@
-//! The server's own spans in the local trace file (`observability/RpcInstrumentation.ts`).
+//! The server's own spans in the local trace file, and the RPC metrics (`observability/RpcInstrumentation.ts`).
 //!
 //! Each WebSocket RPC is a span named `ws.rpc.<method>` with the attributes the original gives it; a subscription's span lasts until it
 //! ends, fails or is interrupted. The record is the original's `effect-span` (`spanToTraceRecord`), appended to the same file as the
@@ -33,7 +33,8 @@ fn nanos_now() -> u128 {
 
 /// A call in progress. Dropped without an end, it was interrupted: the client let go of it, or the connection closed.
 pub struct RpcSpan {
-    sink: TraceSink,
+    /// The trace file; `None` for a call that records no span (its metrics are still counted).
+    sink: Option<TraceSink>,
     method: String,
     aggregate: &'static str,
     trace_id: String,
@@ -44,13 +45,14 @@ pub struct RpcSpan {
 }
 
 impl RpcSpan {
-    /// `None` when the server keeps no trace file, the method records none, or it is not one of the group's.
+    /// `None` when the method is not one of the group's, or there is neither a trace file to write nor a metrics exporter to count for.
+    /// A method that records no span still counts in the metrics, as in the original.
     pub fn start(sink: Option<&TraceSink>, method: &str) -> Option<Self> {
-        let sink = sink?.clone();
-        if TRACING_DISABLED.contains(&method) {
+        let aggregate = aggregate(method)?;
+        let sink = sink.filter(|_| !TRACING_DISABLED.contains(&method)).cloned();
+        if sink.is_none() && !crate::otlp::recording() {
             return None;
         }
-        let aggregate = aggregate(method)?;
         Some(Self { sink, method: method.to_owned(), aggregate, trace_id: hex(16), span_id: hex(8), started_at: nanos_now(), clock: Instant::now(), ended: false })
     }
     pub fn succeed(mut self) {
@@ -65,7 +67,15 @@ impl RpcSpan {
             return;
         }
         let elapsed = self.clock.elapsed();
-        self.sink.push(&json!({
+        let outcome = match exit["_tag"].as_str() {
+            Some("Success") => "success",
+            Some("Failure") => "failure",
+            _ => "interrupt",
+        };
+        crate::otlp::time("t3_rpc_request_duration", "RPC request handling duration.", &[("method", &self.method)], elapsed.as_secs_f64() * 1000.0);
+        crate::otlp::count("t3_rpc_requests_total", "Total RPC requests handled by the websocket RPC server.", &[("method", &self.method), ("outcome", outcome)], 1.0);
+        let Some(sink) = &self.sink else { return };
+        sink.push(&json!({
             "type":"effect-span","name":format!("ws.rpc.{}", self.method),"traceId":self.trace_id,"spanId":self.span_id,"sampled":true,"kind":"internal",
             "startTimeUnixNano":self.started_at.to_string(),"endTimeUnixNano":(self.started_at + elapsed.as_nanos()).to_string(),"durationMs":elapsed.as_secs_f64() * 1000.0,
             "attributes":{"rpc.transport":"websocket","rpc.system":"effect-rpc","rpc.method":self.method,"rpc.aggregate":self.aggregate},
