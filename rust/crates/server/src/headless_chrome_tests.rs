@@ -351,6 +351,48 @@ mod process {
         );
     }
 
+    /// TODO(original: the server browser has no network policy): its launcher starts the same shell with the network as the machine has it,
+    /// popups allowed and no proxy. The HTML renderer's launcher above keeps its proxy and its blocked popups.
+    #[tokio::test]
+    async fn the_server_browsers_launcher_starts_the_shell_without_the_proxy_the_renderer_goes_through() {
+        let directory = tempfile::tempdir().unwrap();
+        let args = script(directory.path(), "direct-args-browser", "printf '%s\\n' \"$@\" >&2\nexit 0");
+        let profile = directory.path().join("profile");
+        let input = LaunchInput { executable: args.clone(), no_sandbox: false, profile_directory: profile.clone() };
+        let mut attempts = 0;
+        let browser = loop {
+            match DirectProcessLauncher.launch(&input).await {
+                Err(error) if error.cause.as_deref().is_some_and(|cause| cause.contains("Text file busy")) && attempts < 20 => attempts += 1,
+                other => break other.unwrap(),
+            }
+        };
+        within(browser.connection.closed()).await;
+        let output = browser.handle.exited().await.output.unwrap();
+        let started: Vec<&str> = output.lines().collect();
+        let profile_flag = format!("--user-data-dir={}", profile.display());
+        assert_eq!(
+            started,
+            [
+                "--headless=new",
+                "--remote-debugging-pipe",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--disable-gpu",
+                "--hide-scrollbars",
+                "--mute-audio",
+                "--force-device-scale-factor=2",
+                "--disable-popup-blocking",
+                "--disable-extensions",
+                "--password-store=basic",
+                "--use-mock-keychain",
+                "--force-color-profile=srgb",
+                profile_flag.as_str(),
+                "about:blank",
+            ]
+        );
+        assert!(!output.contains("proxy") && !output.contains("--block-new-web-contents"));
+    }
+
     #[tokio::test]
     async fn the_sandbox_is_switched_off_only_when_asked() {
         let directory = tempfile::tempdir().unwrap();

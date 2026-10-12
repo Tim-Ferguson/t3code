@@ -124,7 +124,7 @@ fn js_number(value: f64) -> String {
 }
 
 /// A remote object of the protocol: its type, and what it shows as.
-fn remote_object_text(object: &Value) -> Option<String> {
+pub(crate) fn remote_object_text(object: &Value) -> Option<String> {
     let kind = object.get("type")?.as_str()?;
     let description = match object.get("description") {
         None => None,
@@ -517,7 +517,7 @@ mod process {
         reaped: AtomicBool,
         stderr_tail: Arc<Mutex<Vec<u8>>>,
         stderr_done: watch::Receiver<bool>,
-        _proxy: PublicProxy,
+        _proxy: Option<PublicProxy>,
     }
 
     impl ChromeHandle {
@@ -568,6 +568,27 @@ mod process {
     impl BrowserLauncher for ProcessLauncher {
         async fn launch(&self, input: &LaunchInput) -> Result<LaunchedBrowser, HtmlRenderBrowserError> {
             let proxy = PublicProxy::start().await.map_err(|cause| HtmlRenderBrowserError::caused("the preview proxy could not start", cause))?;
+            start(input, Some(proxy))
+        }
+    }
+
+    /// The server browser's launcher (apps/server/src/preview/ServerBrowserContexts.ts): the same shell and pipe, but with the network as the
+    /// machine has it, because the original's server browser has no proxy and tabs open the dev servers on this machine's loopback.
+    ///
+    /// TODO(original: the server browser has no network policy). Nothing here stops a page, or the agent driving it, from reaching loopback
+    /// services, the private network or a cloud metadata address, or from leaving a downloaded or uploaded file on the way. A stricter
+    /// policy is a different launcher; `ProcessLauncher` is the one that confines the HTML renderer.
+    pub struct DirectProcessLauncher;
+
+    #[async_trait]
+    impl BrowserLauncher for DirectProcessLauncher {
+        async fn launch(&self, input: &LaunchInput) -> Result<LaunchedBrowser, HtmlRenderBrowserError> {
+            start(input, None)
+        }
+    }
+
+    fn start(input: &LaunchInput, proxy: Option<PublicProxy>) -> Result<LaunchedBrowser, HtmlRenderBrowserError> {
+        {
             let unable = |cause: std::io::Error| HtmlRenderBrowserError::caused("the browser could not be started", cause);
             // The browser reads commands from fd 3 and writes replies to fd 4; the parent keeps the other end of each.
             let (to_browser_read, to_browser_write) = std::io::pipe().map_err(unable)?;
@@ -577,21 +598,22 @@ mod process {
 
             let mut command = tokio::process::Command::new(&input.executable);
             command
-                .args([
-                    "--headless=new",
-                    "--remote-debugging-pipe",
-                    "--no-first-run",
-                    "--no-default-browser-check",
-                    "--disable-gpu",
-                    "--hide-scrollbars",
-                    "--mute-audio",
-                    "--block-new-web-contents",
-                ])
-                .arg(format!("--proxy-server=socks5://127.0.0.1:{}", proxy.port()))
-                // Loopback would otherwise skip the proxy.
-                .arg("--proxy-bypass-list=<-loopback>")
-                // WebRTC would otherwise send UDP, which no proxy carries.
-                .arg("--force-webrtc-ip-handling-policy=disable_non_proxied_udp");
+                .args(["--headless=new", "--remote-debugging-pipe", "--no-first-run", "--no-default-browser-check", "--disable-gpu", "--hide-scrollbars", "--mute-audio"]);
+            match &proxy {
+                Some(proxy) => {
+                    command
+                        .arg("--block-new-web-contents")
+                        .arg(format!("--proxy-server=socks5://127.0.0.1:{}", proxy.port()))
+                        // Loopback would otherwise skip the proxy.
+                        .arg("--proxy-bypass-list=<-loopback>")
+                        // WebRTC would otherwise send UDP, which no proxy carries.
+                        .arg("--force-webrtc-ip-handling-policy=disable_non_proxied_udp");
+                }
+                // Tabs open popups and render at twice the scale; no storage prompt reaches a headless shell.
+                None => {
+                    command.args(["--force-device-scale-factor=2", "--disable-popup-blocking", "--disable-extensions", "--password-store=basic", "--use-mock-keychain", "--force-color-profile=srgb"]);
+                }
+            }
             if input.no_sandbox {
                 command.arg("--no-sandbox");
             }
@@ -644,11 +666,21 @@ mod process {
 }
 
 #[cfg(unix)]
-pub use process::ProcessLauncher;
+pub use process::{DirectProcessLauncher, ProcessLauncher};
 
 /// Where the browser cannot be started: this host has no pipe transport for it.
 #[cfg(not(unix))]
 pub struct ProcessLauncher;
+#[cfg(not(unix))]
+pub struct DirectProcessLauncher;
+
+#[cfg(not(unix))]
+#[async_trait]
+impl BrowserLauncher for DirectProcessLauncher {
+    async fn launch(&self, _: &LaunchInput) -> Result<LaunchedBrowser, HtmlRenderBrowserError> {
+        Err(HtmlRenderBrowserError::new("the browser cannot be started on this platform"))
+    }
+}
 
 #[cfg(not(unix))]
 #[async_trait]

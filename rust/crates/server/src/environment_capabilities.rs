@@ -13,7 +13,16 @@ pub fn advertised() -> Value {
 /// advertises (`self_update_rpc::capabilities`); an installation the npm package manager owns (`serverInstallation`) is not a
 /// thing a native binary has.
 pub fn advertised_with(update: Option<crate::self_update_rpc::UpdateCapabilities>) -> Value {
+    advertised_for(update, false)
+}
+
+/// `advertised_with`, and `serverBrowser` when the server's own browser is switched on (`server_browser::SWITCH`). The original always
+/// advertises it; here it is only true of a server that will run the browser, because clients open `server` tabs on it.
+pub fn advertised_for(update: Option<crate::self_update_rpc::UpdateCapabilities>, server_browser: bool) -> Value {
     let mut capabilities = base();
+    if server_browser {
+        capabilities["serverBrowser"] = json!(true);
+    }
     if let Some(update) = update {
         if let Some(self_update) = update.self_update {
             capabilities["serverSelfUpdate"] = serde_json::to_value(self_update).unwrap();
@@ -120,5 +129,16 @@ mod tests {
         for held_back in ["serverBrowser"] {
             assert!(advertised().get(held_back).is_none(), "{held_back}");
         }
+    }
+
+    /// Only a server that runs the browser says so, and the descriptor with it still decodes.
+    #[test]
+    fn the_server_browser_is_advertised_only_when_it_is_switched_on() {
+        assert!(advertised_for(None, false).get("serverBrowser").is_none());
+        let capabilities = advertised_for(None, true);
+        assert_eq!(capabilities["serverBrowser"], true);
+        let descriptor = json!({"environmentId":"environment","label":"Rust","platform":{"os":"linux","arch":"x64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":capabilities});
+        let decoded: t3_contracts::ExecutionEnvironmentDescriptor = serde_json::from_value(descriptor).unwrap();
+        assert_eq!(serde_json::to_value(decoded).unwrap()["capabilities"]["serverBrowser"], true);
     }
 }

@@ -244,6 +244,18 @@ pub mod html_render;
 #[cfg(test)]
 mod html_render_tests;
 
+// The server's own browser, built off (`server_browser::SWITCH`); each module holds its tests.
+pub mod session_control;
+pub mod server_browser_page;
+pub mod server_browser_input;
+pub mod server_browser_viewer;
+#[cfg(test)]
+mod server_browser_double;
+pub mod server_browser_contexts;
+pub mod server_browser;
+pub mod server_browser_http;
+pub mod cli_browser;
+
 pub mod html_render_shared;
 
 #[cfg(test)]

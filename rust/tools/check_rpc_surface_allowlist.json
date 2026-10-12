@@ -3,17 +3,17 @@
     "omitted": {},
     "pending": {},
     "partial": {
-      "preview.clearProfile": "Deletes the profile's storage directory (server_browser_profiles.rs); the environment has no running server browser whose context for it needs closing first.",
-      "preview.open": "Tabs are tracked in memory and the desktop-runtime path works end to end (preview_manager.rs); a `server` runtime tab is recorded but no page is ever rendered for it, as the environment has no server browser yet (`serverBrowser` is not advertised)."
+      "preview.clearProfile": "Deletes the profile's storage directory (server_browser_profiles.rs). With the server browser off (T3CODE_RUST_SERVER_BROWSER unset) nothing has the storage open; with it on, the browser closes the profile's tabs first (server_browser_contexts.rs).",
+      "preview.open": "Tabs are tracked in memory and the desktop-runtime path works end to end (preview_manager.rs). A `server` runtime tab gets a page only when the server browser is switched on (T3CODE_RUST_SERVER_BROWSER=1, server_browser.rs); off, it is recorded but nothing renders it and `serverBrowser` is not advertised."
     }
   },
   "http": {
     "omitted": {},
-    "pending": {
-      "GET /api/preview-stream/*": "Preview browser frame stream: not ported.",
-      "POST /api/preview-stream/upload": "Preview browser file upload: not ported."
-    },
-    "partial": {}
+    "pending": {},
+    "partial": {
+      "GET /api/preview-stream/*": "Built off: the frame stream, download and 4404/4503 closes are ported (server_browser_http.rs), but every one answers a plain 404 unless the server browser is switched on (T3CODE_RUST_SERVER_BROWSER=1).",
+      "POST /api/preview-stream/upload": "Built off: the picker upload is ported (server_browser_http.rs) and answers a plain 404 unless the server browser is switched on (T3CODE_RUST_SERVER_BROWSER=1)."
+    }
   },
   "mcp": {
     "pending": {
@@ -21,7 +21,7 @@
       "html_render": "Listed; fails as the original's HTML renderer does without a browser (htmlRender/headlessChrome.ts not ported)."
     },
     "partial": {
-      "preview_open": "Runs on whichever browser host is registered with the broker (preview_automation_broker.rs). This server registers none yet: the desktop's channel is not ported and the server's own browser is not built, so every browser tool answers PreviewAutomationNoAvailableHostError, as the original does with no host."
+      "preview_open": "Runs on whichever browser host is registered with the broker (preview_automation_broker.rs). The server's own browser registers as the preferred host only when it is switched on (T3CODE_RUST_SERVER_BROWSER=1, server_browser.rs); the desktop's channel is not ported, so with the switch off every browser tool answers PreviewAutomationNoAvailableHostError, as the original does with no host."
     }
   },
   "settings": {
@@ -38,8 +38,9 @@
     "partial": {}
   },
   "env": {
-    "pending": {
-      "serverBrowser": "Server-side browser (preview/ServerBrowser.ts): not ported."
+    "pending": {},
+    "partial": {
+      "serverBrowser": "Built off: advertised only when the server browser is switched on (T3CODE_RUST_SERVER_BROWSER=1; environment_capabilities::advertised_for), unlike the original, which always advertises it."
     }
   }
 }

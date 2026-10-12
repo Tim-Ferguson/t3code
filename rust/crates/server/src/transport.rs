@@ -150,6 +150,7 @@ pub fn router(state: ApiState) -> Router {
         .route("/api/pull-requests/diff", post(pull_request_diff))
         .route("/ws", get(upgrade))
         .merge(crate::attachment_http::routes())
+        .merge(crate::server_browser_http::routes())
         .merge(crate::scheduled_tasks_http::routes())
         .merge(crate::trace_sink::routes())
         .merge(crate::connect_http::routes())
@@ -495,6 +496,15 @@ pub(crate) fn authenticate_media_request(
     ticket: Option<&str>,
     scope: AuthEnvironmentScope,
 ) -> Result<(), Response> {
+    authenticate_media_session(state, headers, ticket, scope).map(|_| ())
+}
+/// The session of a media request (a one-use ticket is spent here), once it holds `scope`.
+pub(crate) fn authenticate_media_session(
+    state: &ApiState,
+    headers: &HeaderMap,
+    ticket: Option<&str>,
+    scope: AuthEnvironmentScope,
+) -> Result<Session, Response> {
     let session = match ticket.filter(|ticket| !ticket.trim().is_empty()) {
         Some(ticket) => state
             .auth
@@ -503,7 +513,8 @@ pub(crate) fn authenticate_media_request(
         None => authenticate(state, headers),
     }
     .map_err(IntoResponse::into_response)?;
-    require(&session, scope).map_err(IntoResponse::into_response)
+    require(&session, scope).map_err(IntoResponse::into_response)?;
+    Ok(session)
 }
 pub(crate) fn require(session: &Session, scope: AuthEnvironmentScope) -> Result<(), ApiError> {
     if session.scopes.contains(&scope) {

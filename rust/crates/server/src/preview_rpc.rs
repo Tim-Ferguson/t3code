@@ -48,8 +48,12 @@ pub async fn command(state: &ApiState, request: &RpcRequest) -> Result<Value, Va
         "preview.clearProfile" => {
             let input: t3_contracts::PreviewClearProfileInput = decode(request)?;
             let Some(state_dir) = state.store.state_dir() else { return Ok(Value::Null) };
-            crate::server_browser_profiles::clear_profile(&crate::server_browser_profiles::profiles_dir(state_dir), input.profile_id.as_str())
-                .await
+            // A running server browser closes the profile's open tabs before its storage goes; without one nothing has the storage open.
+            let cleared = match crate::server_browser_http::installed(&state.store) {
+                Some(browser) => browser.clear_profile(input.profile_id.as_str()).await,
+                None => crate::server_browser_profiles::clear_profile(&crate::server_browser_profiles::profiles_dir(state_dir), input.profile_id.as_str()).await,
+            };
+            cleared
                 .map(|()| Value::Null)
                 .map_err(|error| {
                     wire(PreviewClearProfileError {

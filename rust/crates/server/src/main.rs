@@ -1070,7 +1070,9 @@ async fn run(
     if let Some(machine) = machine {
         platform["machine"] = json!(machine);
     }
-    let environment = json!({"environmentId":environment_id,"label":label,"platform":platform,"serverVersion":env!("CARGO_PKG_VERSION"),"orchestrationProtocolVersion":2,"capabilities":t3_server::environment_capabilities::advertised_with(Some(update_capabilities))});
+    // The server's own browser is off unless an operator switches it on (`T3CODE_RUST_SERVER_BROWSER`); only then is it advertised.
+    let server_browser = t3_server::server_browser::switch_on(|name| std::env::var(name).ok());
+    let environment = json!({"environmentId":environment_id,"label":label,"platform":platform,"serverVersion":env!("CARGO_PKG_VERSION"),"orchestrationProtocolVersion":2,"capabilities":t3_server::environment_capabilities::advertised_for(Some(update_capabilities), server_browser)});
     let native_config = NativeConfig::load(
         &state_dir,
         &server_cwd,
@@ -1380,6 +1382,7 @@ async fn run(
         t3_server::connect::TailscaleServe::activate(std::sync::Arc::new(t3_remote::tailscale::Tailscale::new(cfg!(windows))), local_port, options.tailscale_serve_port.unwrap_or(443))
     });
     let html_render_store = store.clone();
+    t3_server::server_browser::start_for_store(&store, &environment_id, server_browser).await;
     let state = ApiState {
         settings: settings_service.clone(),
         store,
@@ -1434,6 +1437,7 @@ async fn run(
     }
     mcp.shutdown().await;
     t3_server::html_render::shutdown(&html_render_store);
+    t3_server::server_browser::shutdown_for_store(&html_render_store).await;
     if let Some(background) = background {
         background.shutdown().await;
     }

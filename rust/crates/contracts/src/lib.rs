@@ -54,6 +54,8 @@ pub mod preview_session;
 pub use preview_session::*;
 pub mod preview_automation;
 pub use preview_automation::*;
+pub mod preview_automation_inputs;
+pub use preview_automation_inputs::*;
 pub mod resource_telemetry;
 pub use resource_telemetry::*;
 

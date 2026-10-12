@@ -573,7 +573,7 @@ fn shell_word(value: &str) -> String {
 
 /// `t3 browser setup` as root, for the setup a person runs once on the host: through the absolute path of this binary, which `sudo` needs
 /// no PATH for.
-fn root_setup_command() -> String {
+pub(crate) fn root_setup_command() -> String {
     let launcher = std::env::current_exe().ok().and_then(|path| path.to_str().map(shell_word)).unwrap_or_else(|| "t3".into());
     format!("sudo {launcher} {}", preview_browser_host::SETUP_SUBCOMMAND)
 }
