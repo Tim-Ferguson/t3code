@@ -611,7 +611,7 @@ async fn project_snapshot(State(state): State<ApiState>, headers: HeaderMap) -> 
     let session = authenticate(&state, &headers)?;
     require(&session, AuthEnvironmentScope::OrchestrationRead)?;
     let mut projects = ProjectService::new(state.store.clone()).list().map_err(|error| internal_because("project_snapshot_failed", error))?;
-    crate::shell_enrichment::enrich_projects(&crate::shell_enrichment::service(&state), &mut projects);
+    crate::shell_enrichment::hydrate_projects(&crate::shell_enrichment::service(&state), &mut projects);
     for project in &mut projects {
         project["deletedAt"] = Value::Null;
     }
@@ -622,6 +622,13 @@ async fn project_snapshot(State(state): State<ApiState>, headers: HeaderMap) -> 
 async fn project_mutate(State(state): State<ApiState>, headers: HeaderMap, body: axum::body::Bytes) -> Result<Json<Value>, ApiError> {
     let session = authenticate(&state, &headers)?;
     let payload: Value = serde_json::from_slice(&body).map_err(|_| undecodable())?;
+    // The body is decoded with the schema `projects.mutate` decodes its payload with (`ProjectMutation`): a project icon that is not
+    // a lucide icon, an emoji or a monogram is refused here as it is there, and the command is what that decoding makes of the body.
+    let payload = match crate::rpc_admission::admit("projects.mutate", &payload) {
+        Ok(Some(decoded)) => decoded,
+        Ok(None) => payload,
+        Err(_) => return Err(undecodable()),
+    };
     if crate::project::ProjectCommand::from_json(payload.clone()).ok().and_then(|command| command.normalized().ok()).is_none() {
         return Err(undecodable());
     }
@@ -637,7 +644,7 @@ async fn project_mutate(State(state): State<ApiState>, headers: HeaderMap, body:
     let enrichment = crate::shell_enrichment::service(&state);
     enrichment.invalidate(before.iter().map(String::as_str).chain(project["workspaceRoot"].as_str()));
     if project["deletedAt"].is_null() {
-        crate::shell_enrichment::enrich_projects(&enrichment, std::slice::from_mut(&mut project));
+        crate::shell_enrichment::hydrate_projects(&enrichment, std::slice::from_mut(&mut project));
     }
     Ok(Json(project))
 }
@@ -1224,7 +1231,7 @@ async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Va
             };
             let settings = crate::provider_registry::redact_settings(&settings);
             if request.tag == "server.getConfig" {
-                let mut config=state.config.clone().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Native configuration is unavailable."}))?;
+                let mut config=state.config.clone().ok_or_else(||settings_unavailable(&state.store))?;
                 config["settings"] = settings;
                 if let Some(providers) = state.providers {
                     config["providers"] = json!(providers.snapshots());
@@ -1352,7 +1359,7 @@ async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Va
         return crate::thread_search_rpc::command(&state.store, &request.tag, request.payload).await;
     }
     if crate::keybindings_rpc::METHODS.contains(&request.tag.as_str()) {
-        return crate::keybindings_rpc::command(state.config.as_ref(), &request.tag, request.payload).await;
+        return crate::keybindings_rpc::command(state.config.as_ref(), state.store.state_dir(), &request.tag, request.payload).await;
     }
     if crate::mcp_apps::METHODS.contains(&request.tag.as_str()) {
         return Box::pin(crate::mcp_apps::command(&state.store, &request.tag, request.payload)).await;
@@ -1496,6 +1503,8 @@ fn session_ended(method: &str) -> Value {
 /// What a server started without a settings service answers where the original's settings service fails. The original always has one, so
 /// the failure its settings methods and `subscribeServerConfig` can report is a `ServerSettingsError`, here for the file that cannot be
 /// read (`<state>/settings.json`, or `<memory>` as the original's in-memory settings name themselves when there is no state directory).
+/// A server without a configuration answers the same, for `server.getConfig` and `subscribeServerConfig`: the configuration is built from the
+/// settings first.
 fn settings_unavailable(store: &crate::persistence::Store) -> Value {
     let path = store.state_dir().map_or_else(|| "<memory>".to_owned(), |directory| directory.join("settings.json").to_string_lossy().into_owned());
     json!({"_tag":"ServerSettingsError","settingsPath":path,"operation":"read-file"})
@@ -1549,7 +1558,7 @@ fn unary(state: &ApiState, request: &RpcRequest) -> Result<Value, Value> {
     let error = |error: StoreError| json!({"_tag":"NativeServiceError","method":request.tag,"message":error.to_string()});
     match request.tag.as_str(){
         "server.probe"=>Ok(json!({})),
-        "server.getConfig"=>state.config.clone().ok_or_else(||json!({"_tag":"NativeMethodUnsupportedError","method":request.tag,"message":"Native configuration service is not yet available."})),
+        "server.getConfig"=>state.config.clone().ok_or_else(||settings_unavailable(&state.store)),
         "orchestration.launchThread"=>{
             // A project whose clone has not landed has no files to work in.
             if let Some(refusal)=request.payload["projectId"].as_str().and_then(|project|crate::project_clone::refusal(&state.store,project)){return Err(crate::dispatch_error::launch(&request.payload,&StoreError::InvalidCommand(refusal.into())))}
@@ -1595,9 +1604,12 @@ fn unary(state: &ApiState, request: &RpcRequest) -> Result<Value, Value> {
             let projects=ProjectService::new(state.store.clone());
             let id=request.payload["projectId"].as_str().unwrap_or_default();
             let before=projects.get(id).ok().flatten().and_then(|project|project["workspaceRoot"].as_str().map(str::to_owned));
-            let result=projects.mutate(request.payload.clone(),Utc::now()).map_err(|error|json!({"_tag":"ProjectMutationError","commandId":request.payload["commandId"],"message":crate::project::mutation_message(&error)}))?;
+            let mut result=projects.mutate(request.payload.clone(),Utc::now()).map_err(|error|json!({"_tag":"ProjectMutationError","commandId":request.payload["commandId"],"message":crate::project::mutation_message(&error)}))?;
             let after=projects.get(id).ok().flatten().and_then(|project|project["workspaceRoot"].as_str().map(str::to_owned));
-            crate::shell_enrichment::service(state).invalidate(before.iter().chain(after.iter()).map(String::as_str).chain(request.payload["workspaceRoot"].as_str()));
+            let enrichment=crate::shell_enrichment::service(state);
+            enrichment.invalidate(before.iter().chain(after.iter()).map(String::as_str).chain(request.payload["workspaceRoot"].as_str()));
+            // The project as `readCommitted` hands it back: with the identity and the icon file known so far.
+            if result["deletedAt"].is_null() {crate::shell_enrichment::hydrate_projects(&enrichment,std::slice::from_mut(&mut result));}
             Ok(result)
         },
         "projects.readFile"=>{
@@ -2521,7 +2533,7 @@ async fn config_stream(
             Some(sources)=>crate::usage_limit_sources::with_usage_limits_commands(&providers,sources.current().as_slice()),
             None=>providers,
         });
-        let mut config=state.config.clone().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Native configuration is unavailable."}))?;
+        let mut config=state.config.clone().ok_or_else(||settings_unavailable(&state.store))?;
         if let Some(settings)=&settings {config["settings"]=crate::provider_registry::redact_settings(&settings.snapshot);}
         if let Some(providers)=providers {config["providers"]=json!(providers);}
         let mut keybindings=crate::keybindings_rpc::open_stream(&mut config).await?;
@@ -3087,6 +3099,61 @@ mod tests {
         socket.close(None).await.unwrap();
         stop.send(()).unwrap();
         server.await.unwrap();
+    }
+    /// A server with no configuration at all answers the methods that need it with the failures the original types them with (the outbound
+    /// check panics on anything else): `server.getConfig` and `subscribeServerConfig` fail as the settings do, the keybinding methods as the
+    /// keybindings file does, naming the file of the state directory.
+    #[tokio::test]
+    async fn a_server_without_a_configuration_fails_the_methods_that_need_it_as_the_original_types_them() {
+        use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, tungstenite::{Message, client::IntoClientRequest}};
+        type Socket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
+        async fn send(socket: &mut Socket, value: Value) {
+            socket.send(Message::Text(value.to_string().into())).await.unwrap();
+        }
+        async fn next(socket: &mut Socket) -> Value {
+            let frame = tokio::time::timeout(HANG_BOUND, socket.next()).await.unwrap().unwrap().unwrap();
+            serde_json::from_str(frame.to_text().unwrap()).unwrap()
+        }
+        let directory = tempfile::tempdir().unwrap();
+        let state_dir = std::fs::canonicalize(directory.path()).unwrap();
+        let mut api = state();
+        api.store = Store::open(state_dir.join("rust-state.sqlite")).unwrap();
+        assert!(api.config.is_none() && api.settings.is_none());
+        let bearer = token(&api, vec![AuthEnvironmentScope::OrchestrationRead, AuthEnvironmentScope::SettingsWrite]);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, router(api)).await.unwrap() });
+        struct Abort(tokio::task::AbortHandle);
+        impl Drop for Abort {
+            fn drop(&mut self) {
+                self.0.abort();
+            }
+        }
+        let _owned = Abort(server.abort_handle());
+        let mut request = format!("ws://{address}/ws?orchestrationProtocol=2").into_client_request().unwrap();
+        request.headers_mut().insert("Authorization", format!("Bearer {bearer}").parse().unwrap());
+        let mut socket = tokio_tungstenite::connect_async(request).await.unwrap().0;
+        let settings_file = state_dir.join("settings.json").to_string_lossy().into_owned();
+        let keybindings_file = state_dir.join("keybindings.json").to_string_lossy().into_owned();
+        for (id, tag, payload) in [
+            (1, "server.getConfig", json!({})),
+            (2, "subscribeServerConfig", json!({})),
+            (3, "server.upsertKeybinding", json!({"key":"mod+k","command":"terminal.toggle"})),
+            (4, "server.removeKeybinding", json!({"key":"mod+k","command":"terminal.toggle"})),
+        ] {
+            send(&mut socket, json!({"_tag":"Request","id":id,"tag":tag,"payload":payload,"headers":[]})).await;
+            let reply = next(&mut socket).await;
+            assert_eq!((reply["_tag"].as_str(), reply["requestId"].clone()), (Some("Exit"), json!(id)), "{tag}: {reply}");
+            let error = &reply["exit"]["cause"][0]["error"];
+            match tag {
+                "server.upsertKeybinding" | "server.removeKeybinding" => {
+                    assert_eq!((error["_tag"].as_str(), error["configPath"].as_str()), (Some("KeybindingsConfigParseError"), Some(keybindings_file.as_str())), "{tag}: {reply}");
+                    assert_eq!(error["detail"], "failed to access keybindings config");
+                }
+                _ => assert_eq!((error["_tag"].as_str(), error["operation"].as_str(), error["settingsPath"].as_str()), (Some("ServerSettingsError"), Some("read-file"), Some(settings_file.as_str())), "{tag}: {reply}"),
+            }
+        }
+        socket.close(None).await.unwrap();
     }
     /// Without a settings service every reply is still one the original's schema encodes (the outbound check panics otherwise): the config
     /// stream answers the config it was given, and the settings methods answer a `ServerSettingsError`.

@@ -572,7 +572,8 @@
     },
     fileInput: (selector) => locate(selector),
     attribute: (element, name) => element.getAttribute(name),
-    snapshot: () => {
+    // `prefix` names the frame the tree is of (`f1` for the first frame below the page), so the refs of a frame cannot be taken for another's.
+    snapshot: (prefix = "") => {
       refs.clear();
       const lines = [];
       const SKIP = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE", "HEAD"]);
@@ -636,7 +637,7 @@
         let childDepth = depth;
         const interesting = role && role !== "presentation" && role !== "none";
         if (interesting || el.tagName === "IFRAME" || el.tagName === "FRAME") {
-          const ref = "e" + ++counter;
+          const ref = prefix + "e" + ++counter;
           refs.set(ref, new WeakRef(el));
           const name = el.tagName === "IFRAME" || el.tagName === "FRAME" ? "" : nameOf(el);
           let line =

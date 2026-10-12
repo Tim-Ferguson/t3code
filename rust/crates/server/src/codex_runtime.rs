@@ -19,11 +19,19 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot, watch};
 
+/// What the metrics need to know of a provider session: the driver once a session is open, and why the actor was asked to stop.
+#[derive(Default)]
+struct SessionNote {
+    driver: Option<String>,
+    reason: Option<&'static str>,
+}
+
 #[derive(Clone)]
 pub(crate) struct ActorLifetime {
     instance: Arc<Mutex<Option<String>>>,
     stop: watch::Sender<bool>,
     done: watch::Sender<bool>,
+    note: Arc<Mutex<SessionNote>>,
 }
 impl ActorLifetime {
     fn new(instance: Option<String>) -> Self {
@@ -31,7 +39,29 @@ impl ActorLifetime {
             instance: Arc::new(Mutex::new(instance)),
             stop: watch::channel(false).0,
             done: watch::channel(false).0,
+            note: Arc::default(),
         }
+    }
+    /// A session of `driver` is open in this actor.
+    fn note_opened(&self, driver: &str) {
+        self.note.lock().unwrap().driver = Some(driver.to_owned());
+    }
+    /// Asks the actor to stop and says why (the first reason given stands): `ProviderSessionReleaseReason` of the original.
+    pub(crate) fn stop_for(&self, reason: &'static str) {
+        self.note.lock().unwrap().reason.get_or_insert(reason);
+        self.stop.send_replace(true);
+    }
+    pub(crate) async fn stop_and_wait_for(&self, reason: &'static str) {
+        self.note.lock().unwrap().reason.get_or_insert(reason);
+        self.stop_and_wait().await;
+    }
+    /// Counts the release of the session this actor had open, once the actor has ended: `idle_timeout`, `manual_shutdown` and
+    /// `server_shutdown` for a stop that was asked for, `runtime_error` for an actor that ended on its own.
+    fn record_release(&self) {
+        let note = self.note.lock().unwrap();
+        let Some(driver) = note.driver.as_deref() else { return };
+        let reason = note.reason.unwrap_or(if *self.stop.borrow() { "manual_shutdown" } else { "runtime_error" });
+        crate::provider_metrics::record_session(driver, "release", Some(reason), crate::provider_metrics::Outcome::Success);
     }
     #[cfg(test)]
     pub(crate) async fn wait_stopped(&self) {
@@ -138,7 +168,7 @@ impl RuntimeOwner {
             })
             .cloned()
             .collect::<Vec<_>>();
-        futures_util::future::join_all(actors.iter().map(ActorLifetime::stop_and_wait)).await;
+        futures_util::future::join_all(actors.iter().map(|actor| actor.stop_and_wait_for("manual_shutdown"))).await;
     }
     pub fn wake(&self) {
         self.wake.notify_one();
@@ -379,6 +409,7 @@ pub fn start(
                                     let _ = released.await;
                                 }
                             }
+                            let observed = lifetime.clone();
                             actor(
                                 captured_store,
                                 captured_providers,
@@ -388,6 +419,7 @@ pub fn start(
                                 canceled,
                             )
                             .await;
+                            observed.record_release();
                             captured_controls.lock().unwrap().remove(&actor_id);
                         });
                     }
@@ -401,11 +433,25 @@ pub fn start(
                     let owner = owner.clone();
                     let mut stopped = stopped.clone();
                     let providers = providers.clone();
+                    // Every provider's turn operations pass through here, so this is where they are counted (`ProviderSessionManager.decorateRuntime`).
+                    let turn_metrics=if crate::otlp::recording(){crate::provider_metrics::turn_operation(effect.request["type"].as_str().unwrap_or_default()).map(|operation|{
+                        let view=projection(&store,&effect.thread_id).ok();
+                        let selection=view.as_ref().map(|view|&view["thread"]["modelSelection"]);
+                        let provider=selection.and_then(|selection|selection["instanceId"].as_str()).and_then(|instance|providers.driver(instance).ok()).unwrap_or("unknown");
+                        let model=if operation=="send"{selection.and_then(|selection|selection["model"].as_str()).map(str::to_owned)}else{None};
+                        (provider,operation,model)
+                    })}else{None};
                     effects.spawn(async move{
                     // A worktree that storage cleanup (or the user) removed comes back from the thread's branch before the turn, and before its baseline.
                     if effect.request["type"]=="provider-turn.start"{crate::storage_cleanup::recreate_missing_worktree(&store,||providers.settings(),crate::vcs_service::VcsService::shared().core(),&effect.thread_id).await;}
                     if effect.request["type"]=="provider-turn.start"{crate::checkpoint_capture::capture_baseline(&store,&effect.thread_id,effect.request["runId"].as_str()).await;}
-                    let result=tokio::select!{result=async{if actor.send(work).await.is_err(){Err("Provider actor stopped.".into())}else{result.await.unwrap_or_else(|_|Err("Provider actor stopped.".into()))}}=>result,_=stopped.changed()=>Err("The server stopped during provider execution.".into())};
+                    // Timed from the hand-over to the adapter, which answers once it has accepted the operation: the baseline above is not the turn's start.
+                    let handed_over=std::time::Instant::now();
+                    let result=tokio::select!{result=async{if actor.send(work).await.is_err(){Err("Provider actor stopped.".into())}else{result.await.unwrap_or_else(|_|Err("Provider actor stopped.".into()))}}=>result,_=stopped.changed()=>Err(crate::provider_metrics::SERVER_STOPPED.into())};
+                    if let Some((provider,operation,model))=&turn_metrics{
+                        let outcome=match &result{Ok(())=>crate::provider_metrics::Outcome::Success,Err(error) if error.as_str()==crate::provider_metrics::SERVER_STOPPED=>crate::provider_metrics::Outcome::Interrupt,Err(_)=>crate::provider_metrics::Outcome::Failure};
+                        crate::provider_metrics::record_turn(provider,operation,model.as_deref(),outcome,handed_over.elapsed());
+                    }
                     if let Err(error) = &result {
                         if let Err(settlement)=fail_run(
                             &store,
@@ -429,10 +475,10 @@ pub fn start(
                 Err(error) => tracing::error!(%error,"Native effect claim failed"),
             }
             let expiry = idle_release.expiry(&idle);
-            tokio::select! { _=stopped.changed()=>{}, _=notified.notified()=>{}, batch=committed.recv()=>{match batch{Ok(batch)=>{let now=idle_release.now_ms();for stored in &batch{if stored.event.aggregate_kind=="thread"{idle.touch_if_tracked(&stored.event.aggregate_id,now);}idle_release.saw(stored.sequence);}},Err(_)=>{if let Ok(latest)=store.latest_sequence(){idle_release.saw(latest);}}}}, _=scan.tick()=>{}, _=expiry=>{}, result=effects.join_next(),if !effects.is_empty()=>{if let Some(Err(error))=result{tracing::error!(%error,"Provider effect failed");}finished_effects.send_modify(|count|*count+=1);}, result=tasks.join_next(),if !tasks.is_empty()=>{if let Some(Err(error))=result{tracing::error!(%error,"Provider actor failed");}} }
+            tokio::select! { _=stopped.changed()=>{}, _=notified.notified()=>{}, batch=committed.recv()=>{match batch{Ok(batch)=>{let now=idle_release.now_ms();for stored in &batch{if stored.event.aggregate_kind=="thread"{idle.touch_if_tracked(&stored.event.aggregate_id,now);if stored.event.event_type=="provider-session.attached"{if let Some(driver)=stored.event.payload["driver"].as_str(){crate::provider_metrics::record_session(driver,"open",None,crate::provider_metrics::Outcome::Success);if let Some(lifetime)=served.get(&stored.event.aggregate_id){lifetime.note_opened(driver);}}}}idle_release.saw(stored.sequence);}},Err(_)=>{if let Ok(latest)=store.latest_sequence(){idle_release.saw(latest);}}}}, _=scan.tick()=>{}, _=expiry=>{}, result=effects.join_next(),if !effects.is_empty()=>{if let Some(Err(error))=result{tracing::error!(%error,"Provider effect failed");}finished_effects.send_modify(|count|*count+=1);}, result=tasks.join_next(),if !tasks.is_empty()=>{if let Some(Err(error))=result{tracing::error!(%error,"Provider actor failed");}} }
         }
         for actor in actor_controls.lock().unwrap().values() {
-            actor.stop.send_replace(true);
+            actor.stop_for("server_shutdown");
         }
         drop(actors);
         while effects.join_next().await.is_some() {}

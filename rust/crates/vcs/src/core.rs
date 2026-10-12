@@ -404,7 +404,18 @@ impl GitCore {
         } else {
             None
         };
+        // Counted and timed from here, so the wait for a place in the queue is not part of a command's duration.
+        let observation = crate::observe::start(&input.operation);
+        let result = self.execute_queued(input, timeout).await;
+        observation.finish(result.is_ok());
+        result
+    }
 
+    async fn execute_queued(
+        &self,
+        input: ExecuteGitInput,
+        timeout: Option<Duration>,
+    ) -> Result<ExecuteGitResult, GitCommandError> {
         let fail =
             |detail: &str| GitCommandError::new(&input.operation, &input.cwd, &input.args, detail);
         let max_output_bytes = input.max_output_bytes.unwrap_or(DEFAULT_MAX_OUTPUT_BYTES);

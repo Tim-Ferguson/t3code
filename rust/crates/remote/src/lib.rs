@@ -133,6 +133,7 @@ pub mod backoff;
 pub mod boot_service;
 pub mod boot_service_install;
 pub mod cli_release;
+pub mod desktop_app_control;
 pub mod cli_state;
 pub mod cli_token;
 pub mod clock;

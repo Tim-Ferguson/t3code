@@ -259,3 +259,106 @@ async fn the_viewport_follows_what_was_set_and_a_scaled_capture_clips_to_it() {
     assert_eq!(shots[0].params, json!({"format": "png"}));
     assert_eq!(shots[1].params, json!({"format": "jpeg", "quality": 70, "clip": {"x": 0, "y": 0, "width": 900, "height": 700, "scale": 0.5}}));
 }
+
+fn frame_context_created(rig: &Rig, frame: &str, context: i64) {
+    rig.browser.push(json!({"method": "Runtime.executionContextCreated", "sessionId": rig.page.session_id(), "params": {"context": {"id": context, "origin": "http://localhost", "name": "", "auxData": {"frameId": frame, "isDefault": true, "type": "default"}}}}));
+}
+
+fn no_diagnostics() -> SnapshotDiagnostics {
+    SnapshotDiagnostics { console_entries: vec![], network_entries: vec![], action_timeline: vec![] }
+}
+
+/// The snapshot of a page that holds a frame, which holds another: each frame's tree is listed under its `iframe` line, indented one level
+/// further, the refs of a frame `f<n>e<m>` for the nth frame met, and an action on such a ref runs in that frame.
+#[tokio::test]
+async fn a_snapshot_lists_the_trees_of_the_frames_a_page_holds_under_their_iframe_lines() {
+    let rig = rig().await;
+    rig.double.on_evaluate(".snapshot(\"\")", json!({"url": "http://localhost/", "title": "Top", "loading": false, "visibleText": "Top", "tree": "- generic [ref=e1]:\n  - iframe [ref=e2]\n  - button \"Top\" [ref=e3]"}));
+    rig.double.on_evaluate("fileInput(\"aria-ref=e2\")", json!({"__objectId": "owner-e2"}));
+    rig.double.on_evaluate(".snapshot(\"f1\")", json!({"tree": "- generic [ref=f1e1]:\n  - iframe [ref=f1e2]\n  - button \"Inner\" [ref=f1e3]"}));
+    rig.double.on_evaluate("fileInput(\"aria-ref=f1e2\")", json!({"__objectId": "owner-f1e2"}));
+    rig.double.on_evaluate(".snapshot(\"f2\")", json!({"tree": "- link \"Deep\" [ref=f2e1]"}));
+    rig.double.reply_in_turn("DOM.describeNode", vec![json!({"node": {"frameId": "F1"}}), json!({"node": {"frameId": "F2"}})]);
+    frame_context_created(&rig, "F1", 11);
+    frame_context_created(&rig, "F2", 12);
+    // An event reaches the page before the reply to a command sent after it.
+    rig.page.title().await;
+
+    let snapshot = rig.page.snapshot(no_diagnostics()).await.unwrap();
+    let generation = rig.page.ref_generation();
+    let expected = [
+        "- generic [ref=e1]:",
+        "  - iframe [ref=e2]:",
+        "    - generic [ref=f1e1]:",
+        "      - iframe [ref=f1e2]:",
+        "        - link \"Deep\" [ref=f2e1]",
+        "      - button \"Inner\" [ref=f1e3]",
+        "  - button \"Top\" [ref=e3]",
+    ]
+    .join("\n")
+    .replace("[ref=", &format!("[ref=t3-{generation}-"));
+    assert_eq!(snapshot["accessibilityTree"], json!(expected));
+    // The helper script of each frame was asked in that frame's world, with the prefix that names the frame.
+    let evaluations = rig.browser.commands_named("Runtime.evaluate");
+    let context_of = |needle: &str| evaluations.iter().find(|command| command.params["expression"].as_str().unwrap().contains(needle)).map(|command| command.params["contextId"].clone());
+    assert_eq!((context_of(".snapshot(\"\")"), context_of(".snapshot(\"f1\")"), context_of(".snapshot(\"f2\")")), (Some(Value::Null), Some(json!(11)), Some(json!(12))));
+    assert_eq!(context_of("fileInput(\"aria-ref=f1e2\")"), Some(json!(11)), "the nested frame's owner is looked for in its parent's world");
+    assert_eq!(rig.browser.commands_named("DOM.describeNode").iter().map(|command| command.params["objectId"].clone()).collect::<Vec<_>>(), [json!("owner-e2"), json!("owner-f1e2")]);
+
+    // A ref of a frame is accepted as one of the page's own, and an action on it runs in the frame, at the point it has in the page.
+    let selector = rig.page.target_selector(&format!("aria-ref=t3-{generation}-f1e3")).unwrap();
+    assert_eq!(selector, "aria-ref=f1e3");
+    rig.double.on_evaluate("probe(\"aria-ref=f1e3\"", json!({"status": "ok", "x": 5.0, "y": 6.0}));
+    rig.double.on_evaluate("probe(\"aria-ref=f2e1\"", json!({"status": "ok", "x": 5.0, "y": 6.0}));
+    rig.double.reply_in_turn("Runtime.callFunctionOn", vec![json!({"result": {"value": {"x": 7.0, "y": 3.0}}}), json!({"result": {"value": {"x": 100.0, "y": 50.0}}}), json!({"result": {"value": {"x": 20.0, "y": 10.0}}})]);
+    let probe = json!({"scroll": true, "enabled": true, "hit": true});
+    let inner = rig.page.runtime("probe", &[json!("aria-ref=f1e3"), probe.clone()], true).await.unwrap();
+    // The first answer is the one for the first owner asked; the frame below the page has only the page above it.
+    assert_eq!((inner["x"].as_f64(), inner["y"].as_f64()), (Some(12.0), Some(9.0)));
+    let deep = rig.page.runtime("probe", &[json!("aria-ref=f2e1"), probe.clone()], true).await.unwrap();
+    assert_eq!((deep["x"].as_f64(), deep["y"].as_f64()), (Some(125.0), Some(66.0)), "the owner of the frame is asked, then the owner of its parent, and both are added: {deep}");
+    let owners: Vec<Value> = rig.browser.commands_named("Runtime.callFunctionOn").iter().map(|command| command.params["objectId"].clone()).collect();
+    assert_eq!(owners, [json!("owner-e2"), json!("owner-f1e2"), json!("owner-e2")]);
+    let evaluations = rig.browser.commands_named("Runtime.evaluate");
+    let probed = |needle: &str| evaluations.iter().find(|command| command.params["expression"].as_str().unwrap().contains(needle)).map(|command| command.params["contextId"].clone());
+    assert_eq!((probed("probe(\"aria-ref=f1e3\""), probed("probe(\"aria-ref=f2e1\"")), (Some(json!(11)), Some(json!(12))));
+
+    // A frame that navigated or went has no world: its refs are stale, and so is every ref once the page's frames change.
+    rig.browser.push(json!({"method": "Runtime.executionContextDestroyed", "sessionId": rig.page.session_id(), "params": {"executionContextId": 11}}));
+    rig.page.title().await;
+    assert_eq!(rig.page.runtime("probe", &[json!("aria-ref=f1e3"), probe.clone()], true).await.unwrap_err(), OpError::stale_ref());
+    rig.browser.push(json!({"method": "Page.frameDetached", "sessionId": rig.page.session_id(), "params": {"frameId": "F2"}}));
+    rig.page.title().await;
+    assert_eq!(rig.page.runtime("probe", &[json!("aria-ref=f2e1"), probe], true).await.unwrap_err(), OpError::stale_ref());
+    assert_eq!(rig.page.target_selector(&format!("aria-ref=t3-{generation}-f2e1")).unwrap_err(), OpError::stale_ref());
+}
+
+/// A frame the page cannot read leaves its `iframe` line as the page's own snapshot wrote it: one with no world (it lives in another
+/// process, or has not loaded), one that is not a frame owner, and one with nothing in it.
+#[tokio::test]
+async fn a_frame_that_cannot_be_read_stays_a_bare_iframe_line() {
+    let rig = rig().await;
+    rig.double.on_evaluate(".snapshot(\"\")", json!({"url": "http://localhost/", "title": "Top", "loading": false, "visibleText": "", "tree": "- iframe [ref=e1]\n- iframe [ref=e2]\n- iframe [ref=e3]\n- iframe [active] [ref=e4]"}));
+    for reference in ["e1", "e2", "e3"] {
+        rig.double.on_evaluate(&format!("fileInput(\"aria-ref={reference}\")"), json!({"__objectId": format!("owner-{reference}")}));
+    }
+    // e4's element is gone (the script answers none), e3 holds a frame with an empty body, e2 is not a frame owner, e1's frame has no world.
+    rig.double.reply_in_turn("DOM.describeNode", vec![json!({"node": {"frameId": "OTHER-PROCESS"}}), json!({"node": {}}), json!({"node": {"frameId": "EMPTY"}})]);
+    rig.double.on_evaluate(".snapshot(\"f1\")", json!({"tree": ""}));
+    frame_context_created(&rig, "EMPTY", 31);
+    rig.page.title().await;
+    let snapshot = rig.page.snapshot(no_diagnostics()).await.unwrap();
+    let generation = rig.page.ref_generation();
+    let bare = format!("- iframe [ref=t3-{generation}-e1]\n- iframe [ref=t3-{generation}-e2]\n- iframe [ref=t3-{generation}-e3]\n- iframe [active] [ref=t3-{generation}-e4]");
+    assert_eq!(snapshot["accessibilityTree"], json!(bare));
+    // No frame was added, so a ref of one is stale, and the page's own refs still work.
+    assert_eq!(rig.page.target_selector(&format!("aria-ref=t3-{generation}-f1e1")).unwrap_err(), OpError::stale_ref());
+    assert_eq!(rig.page.target_selector(&format!("aria-ref=t3-{generation}-e1")).unwrap(), "aria-ref=e1");
+}
+
+#[test]
+fn only_a_frame_ref_names_a_frame() {
+    for (selector, ordinal) in [("aria-ref=f1e2", 1), (" aria-ref=f12e300 ", 12), ("aria-ref=e5", 0), ("aria-ref=f1e2 >> text=x", 0), ("button", 0), ("", 0), ("aria-ref=fe2", 0)] {
+        assert_eq!(frame_of_selector(selector), ordinal, "{selector}");
+    }
+}

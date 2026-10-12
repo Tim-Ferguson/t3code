@@ -264,13 +264,16 @@ impl McpControlTools {
         let projects = crate::project::ProjectService::new(self.store.clone()).list().map_err(|_| mcp_access::unavailable())?;
         let start = args["cursor"].as_u64().unwrap_or(0) as usize;
         let end = start + args["limit"].as_u64().unwrap_or(20) as usize;
-        let page: Vec<Value> = projects.iter().skip(start).take(end - start).cloned().map(live_project).collect();
+        let mut page: Vec<Value> = projects.iter().skip(start).take(end - start).cloned().map(live_project).collect();
+        crate::shell_enrichment::hydrate_projects(&crate::shell_enrichment::service_for(&self.store, self.services.settings.clone()), &mut page);
         Ok(json!({"projects":page,"nextCursor":if end < projects.len() {json!(end)} else {Value::Null}}))
     }
 
     pub(crate) fn project_read(&self, scope: &InvocationScope, args: Value) -> Out {
         self.read_caller(scope)?;
-        crate::project::ProjectService::new(self.store.clone()).get(text(&args, "projectId").unwrap_or_default()).map_err(|_| mcp_access::unavailable())?.map(live_project).ok_or_else(|| failure("invalid_request", "The project was not found."))
+        let mut project = crate::project::ProjectService::new(self.store.clone()).get(text(&args, "projectId").unwrap_or_default()).map_err(|_| mcp_access::unavailable())?.map(live_project).ok_or_else(|| failure("invalid_request", "The project was not found."))?;
+        crate::shell_enrichment::hydrate_projects(&crate::shell_enrichment::service_for(&self.store, self.services.settings.clone()), std::slice::from_mut(&mut project));
+        Ok(project)
     }
 
     // ---- launching threads -------------------------------------------------------------------

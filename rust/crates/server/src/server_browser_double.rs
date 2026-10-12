@@ -27,6 +27,8 @@ struct State {
     urls: HashMap<String, String>,
     evaluations: Vec<(String, Value)>,
     replies: HashMap<String, Value>,
+    /// Replies a method gives in turn; the last one repeats.
+    sequences: HashMap<String, Vec<Value>>,
     failures: HashMap<String, String>,
     navigation_errors: Vec<(String, String)>,
     /// A navigation that never commits, until it is released.
@@ -68,6 +70,11 @@ impl Double {
     /// A fixed result for every command of this method.
     pub fn reply(&self, method: &str, result: Value) {
         self.lock().replies.insert(method.to_owned(), result);
+    }
+
+    /// The commands of this method are answered in turn with these results (the last one repeats). A fixed `reply` of the method wins.
+    pub fn reply_in_turn(&self, method: &str, results: Vec<Value>) {
+        self.lock().sequences.insert(method.to_owned(), results);
     }
 
     /// Every command of this method fails with this message.
@@ -150,6 +157,10 @@ impl Double {
         if let Some(result) = state.replies.get(&command.method) {
             return vec![reply(result.clone())];
         }
+        if let Some(results) = state.sequences.get_mut(&command.method) {
+            let result = if results.len() > 1 { results.remove(0) } else { results[0].clone() };
+            return vec![reply(result)];
+        }
         match command.method.as_str() {
             "Target.createBrowserContext" => {
                 state.contexts += 1;
@@ -201,6 +212,8 @@ impl Double {
                 let expression = command.params["expression"].as_str().unwrap_or_default();
                 let value = state.evaluations.iter().find(|(needle, _)| expression.contains(needle.as_str())).map(|(_, value)| value.clone());
                 match value {
+                    // A script that answers an element: a remote object, as a reply by reference reads.
+                    Some(Value::Object(object)) if object.contains_key("__objectId") => vec![reply(json!({"result": {"type": "object", "subtype": "node", "objectId": object["__objectId"]}}))],
                     Some(Value::Object(object)) if object.contains_key("__exception") => vec![reply(json!({"result": {"type": "object"}, "exceptionDetails": {"text": "Uncaught", "exception": {"description": object["__exception"]}}}))],
                     Some(value) => vec![reply(json!({"result": {"type": "object", "value": value}}))],
                     None => vec![reply(json!({"result": {"type": "undefined"}}))],

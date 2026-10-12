@@ -214,7 +214,7 @@ pub(crate) async fn release_due(
         }
         tracker.forget(&thread);
         if let Some(lifetime) = served.remove(&thread) {
-            lifetime.stop_and_wait().await;
+            lifetime.stop_and_wait_for("idle_timeout").await;
         }
         actors.remove(&thread);
         if let Err(error) = expire_live_requests(store, &thread) {

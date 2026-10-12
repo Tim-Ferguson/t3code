@@ -1,0 +1,808 @@
+{
+  "addresses": [
+    {
+      "stateDir": "/Users/me/.t3/userdata",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "/var/folders/xx/T/t3code-5b7f033000af/5b7f033000af9c57bf64443d.sock",
+      "directory": "/var/folders/xx/T/t3code-5b7f033000af"
+    },
+    {
+      "stateDir": "/Users/me/.t3/userdata",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "/var/folders/xx/T/t3code-0/5b7f033000af9c57bf64443d.sock",
+      "directory": "/var/folders/xx/T/t3code-0"
+    },
+    {
+      "stateDir": "/Users/me/.t3/userdata",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "/var/folders/xx/T/t3code-501/5b7f033000af9c57bf64443d.sock",
+      "directory": "/var/folders/xx/T/t3code-501"
+    },
+    {
+      "stateDir": "/Users/me/.t3/userdata",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "/var/folders/xx/T/t3code-5b7f033000af/5b7f033000af9c57bf64443d.sock",
+      "directory": "/var/folders/xx/T/t3code-5b7f033000af"
+    },
+    {
+      "stateDir": "/Users/me/.t3/userdata",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "/var/folders/xx/T/t3code-0/5b7f033000af9c57bf64443d.sock",
+      "directory": "/var/folders/xx/T/t3code-0"
+    },
+    {
+      "stateDir": "/Users/me/.t3/userdata",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "/var/folders/xx/T/t3code-501/5b7f033000af9c57bf64443d.sock",
+      "directory": "/var/folders/xx/T/t3code-501"
+    },
+    {
+      "stateDir": "/Users/me/.t3/userdata",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "\\\\.\\pipe\\t3code-app-5b7f033000af9c57bf64443d",
+      "directory": null
+    },
+    {
+      "stateDir": "/Users/me/.t3/userdata",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "\\\\.\\pipe\\t3code-app-5b7f033000af9c57bf64443d",
+      "directory": null
+    },
+    {
+      "stateDir": "/Users/me/.t3/userdata",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "\\\\.\\pipe\\t3code-app-5b7f033000af9c57bf64443d",
+      "directory": null
+    },
+    {
+      "stateDir": "/Users/me/.t3/dev",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "/var/folders/xx/T/t3code-424e9997d62d/424e9997d62dc83de2ba301a.sock",
+      "directory": "/var/folders/xx/T/t3code-424e9997d62d"
+    },
+    {
+      "stateDir": "/Users/me/.t3/dev",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "/var/folders/xx/T/t3code-0/424e9997d62dc83de2ba301a.sock",
+      "directory": "/var/folders/xx/T/t3code-0"
+    },
+    {
+      "stateDir": "/Users/me/.t3/dev",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "/var/folders/xx/T/t3code-501/424e9997d62dc83de2ba301a.sock",
+      "directory": "/var/folders/xx/T/t3code-501"
+    },
+    {
+      "stateDir": "/Users/me/.t3/dev",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "/var/folders/xx/T/t3code-424e9997d62d/424e9997d62dc83de2ba301a.sock",
+      "directory": "/var/folders/xx/T/t3code-424e9997d62d"
+    },
+    {
+      "stateDir": "/Users/me/.t3/dev",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "/var/folders/xx/T/t3code-0/424e9997d62dc83de2ba301a.sock",
+      "directory": "/var/folders/xx/T/t3code-0"
+    },
+    {
+      "stateDir": "/Users/me/.t3/dev",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "/var/folders/xx/T/t3code-501/424e9997d62dc83de2ba301a.sock",
+      "directory": "/var/folders/xx/T/t3code-501"
+    },
+    {
+      "stateDir": "/Users/me/.t3/dev",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "\\\\.\\pipe\\t3code-app-424e9997d62dc83de2ba301a",
+      "directory": null
+    },
+    {
+      "stateDir": "/Users/me/.t3/dev",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "\\\\.\\pipe\\t3code-app-424e9997d62dc83de2ba301a",
+      "directory": null
+    },
+    {
+      "stateDir": "/Users/me/.t3/dev",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "\\\\.\\pipe\\t3code-app-424e9997d62dc83de2ba301a",
+      "directory": null
+    },
+    {
+      "stateDir": "/home/user/.t3/userdata",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "/var/folders/xx/T/t3code-a29d81d75689/a29d81d75689ca4631c4a816.sock",
+      "directory": "/var/folders/xx/T/t3code-a29d81d75689"
+    },
+    {
+      "stateDir": "/home/user/.t3/userdata",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "/var/folders/xx/T/t3code-0/a29d81d75689ca4631c4a816.sock",
+      "directory": "/var/folders/xx/T/t3code-0"
+    },
+    {
+      "stateDir": "/home/user/.t3/userdata",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "/var/folders/xx/T/t3code-501/a29d81d75689ca4631c4a816.sock",
+      "directory": "/var/folders/xx/T/t3code-501"
+    },
+    {
+      "stateDir": "/home/user/.t3/userdata",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "/var/folders/xx/T/t3code-a29d81d75689/a29d81d75689ca4631c4a816.sock",
+      "directory": "/var/folders/xx/T/t3code-a29d81d75689"
+    },
+    {
+      "stateDir": "/home/user/.t3/userdata",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "/var/folders/xx/T/t3code-0/a29d81d75689ca4631c4a816.sock",
+      "directory": "/var/folders/xx/T/t3code-0"
+    },
+    {
+      "stateDir": "/home/user/.t3/userdata",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "/var/folders/xx/T/t3code-501/a29d81d75689ca4631c4a816.sock",
+      "directory": "/var/folders/xx/T/t3code-501"
+    },
+    {
+      "stateDir": "/home/user/.t3/userdata",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "\\\\.\\pipe\\t3code-app-a29d81d75689ca4631c4a816",
+      "directory": null
+    },
+    {
+      "stateDir": "/home/user/.t3/userdata",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "\\\\.\\pipe\\t3code-app-a29d81d75689ca4631c4a816",
+      "directory": null
+    },
+    {
+      "stateDir": "/home/user/.t3/userdata",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "\\\\.\\pipe\\t3code-app-a29d81d75689ca4631c4a816",
+      "directory": null
+    },
+    {
+      "stateDir": "/tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory/",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "/var/folders/xx/T/t3code-db5137da8f4e/db5137da8f4e6078b0bbcf11.sock",
+      "directory": "/var/folders/xx/T/t3code-db5137da8f4e"
+    },
+    {
+      "stateDir": "/tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory/",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "/var/folders/xx/T/t3code-0/db5137da8f4e6078b0bbcf11.sock",
+      "directory": "/var/folders/xx/T/t3code-0"
+    },
+    {
+      "stateDir": "/tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory/",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "/var/folders/xx/T/t3code-501/db5137da8f4e6078b0bbcf11.sock",
+      "directory": "/var/folders/xx/T/t3code-501"
+    },
+    {
+      "stateDir": "/tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory/",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "/var/folders/xx/T/t3code-db5137da8f4e/db5137da8f4e6078b0bbcf11.sock",
+      "directory": "/var/folders/xx/T/t3code-db5137da8f4e"
+    },
+    {
+      "stateDir": "/tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory/",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "/var/folders/xx/T/t3code-0/db5137da8f4e6078b0bbcf11.sock",
+      "directory": "/var/folders/xx/T/t3code-0"
+    },
+    {
+      "stateDir": "/tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory/",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "/var/folders/xx/T/t3code-501/db5137da8f4e6078b0bbcf11.sock",
+      "directory": "/var/folders/xx/T/t3code-501"
+    },
+    {
+      "stateDir": "/tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory/",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "\\\\.\\pipe\\t3code-app-db5137da8f4e6078b0bbcf11",
+      "directory": null
+    },
+    {
+      "stateDir": "/tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory/",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "\\\\.\\pipe\\t3code-app-db5137da8f4e6078b0bbcf11",
+      "directory": null
+    },
+    {
+      "stateDir": "/tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory//tmp/a very long state directory/",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "\\\\.\\pipe\\t3code-app-db5137da8f4e6078b0bbcf11",
+      "directory": null
+    },
+    {
+      "stateDir": "relative/dir",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "/var/folders/xx/T/t3code-393de91d95fd/393de91d95fd83c9f9abef48.sock",
+      "directory": "/var/folders/xx/T/t3code-393de91d95fd"
+    },
+    {
+      "stateDir": "relative/dir",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "/var/folders/xx/T/t3code-0/393de91d95fd83c9f9abef48.sock",
+      "directory": "/var/folders/xx/T/t3code-0"
+    },
+    {
+      "stateDir": "relative/dir",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "/var/folders/xx/T/t3code-501/393de91d95fd83c9f9abef48.sock",
+      "directory": "/var/folders/xx/T/t3code-501"
+    },
+    {
+      "stateDir": "relative/dir",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "/var/folders/xx/T/t3code-393de91d95fd/393de91d95fd83c9f9abef48.sock",
+      "directory": "/var/folders/xx/T/t3code-393de91d95fd"
+    },
+    {
+      "stateDir": "relative/dir",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "/var/folders/xx/T/t3code-0/393de91d95fd83c9f9abef48.sock",
+      "directory": "/var/folders/xx/T/t3code-0"
+    },
+    {
+      "stateDir": "relative/dir",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "/var/folders/xx/T/t3code-501/393de91d95fd83c9f9abef48.sock",
+      "directory": "/var/folders/xx/T/t3code-501"
+    },
+    {
+      "stateDir": "relative/dir",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "\\\\.\\pipe\\t3code-app-393de91d95fd83c9f9abef48",
+      "directory": null
+    },
+    {
+      "stateDir": "relative/dir",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "\\\\.\\pipe\\t3code-app-393de91d95fd83c9f9abef48",
+      "directory": null
+    },
+    {
+      "stateDir": "relative/dir",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "\\\\.\\pipe\\t3code-app-393de91d95fd83c9f9abef48",
+      "directory": null
+    },
+    {
+      "stateDir": "/Users/mé/.t3/userdata",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "/var/folders/xx/T/t3code-5d9a88e6cf00/5d9a88e6cf00dc0f737daf0f.sock",
+      "directory": "/var/folders/xx/T/t3code-5d9a88e6cf00"
+    },
+    {
+      "stateDir": "/Users/mé/.t3/userdata",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "/var/folders/xx/T/t3code-0/5d9a88e6cf00dc0f737daf0f.sock",
+      "directory": "/var/folders/xx/T/t3code-0"
+    },
+    {
+      "stateDir": "/Users/mé/.t3/userdata",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "/var/folders/xx/T/t3code-501/5d9a88e6cf00dc0f737daf0f.sock",
+      "directory": "/var/folders/xx/T/t3code-501"
+    },
+    {
+      "stateDir": "/Users/mé/.t3/userdata",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "/var/folders/xx/T/t3code-5d9a88e6cf00/5d9a88e6cf00dc0f737daf0f.sock",
+      "directory": "/var/folders/xx/T/t3code-5d9a88e6cf00"
+    },
+    {
+      "stateDir": "/Users/mé/.t3/userdata",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "/var/folders/xx/T/t3code-0/5d9a88e6cf00dc0f737daf0f.sock",
+      "directory": "/var/folders/xx/T/t3code-0"
+    },
+    {
+      "stateDir": "/Users/mé/.t3/userdata",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "/var/folders/xx/T/t3code-501/5d9a88e6cf00dc0f737daf0f.sock",
+      "directory": "/var/folders/xx/T/t3code-501"
+    },
+    {
+      "stateDir": "/Users/mé/.t3/userdata",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "\\\\.\\pipe\\t3code-app-5d9a88e6cf00dc0f737daf0f",
+      "directory": null
+    },
+    {
+      "stateDir": "/Users/mé/.t3/userdata",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "\\\\.\\pipe\\t3code-app-5d9a88e6cf00dc0f737daf0f",
+      "directory": null
+    },
+    {
+      "stateDir": "/Users/mé/.t3/userdata",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "\\\\.\\pipe\\t3code-app-5d9a88e6cf00dc0f737daf0f",
+      "directory": null
+    },
+    {
+      "stateDir": "C:\\Users\\me\\.t3\\userdata",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "/var/folders/xx/T/t3code-18a856536aec/18a856536aec3ebfac6f05f7.sock",
+      "directory": "/var/folders/xx/T/t3code-18a856536aec"
+    },
+    {
+      "stateDir": "C:\\Users\\me\\.t3\\userdata",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "/var/folders/xx/T/t3code-0/18a856536aec3ebfac6f05f7.sock",
+      "directory": "/var/folders/xx/T/t3code-0"
+    },
+    {
+      "stateDir": "C:\\Users\\me\\.t3\\userdata",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "/var/folders/xx/T/t3code-501/18a856536aec3ebfac6f05f7.sock",
+      "directory": "/var/folders/xx/T/t3code-501"
+    },
+    {
+      "stateDir": "C:\\Users\\me\\.t3\\userdata",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "/var/folders/xx/T/t3code-18a856536aec/18a856536aec3ebfac6f05f7.sock",
+      "directory": "/var/folders/xx/T/t3code-18a856536aec"
+    },
+    {
+      "stateDir": "C:\\Users\\me\\.t3\\userdata",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "/var/folders/xx/T/t3code-0/18a856536aec3ebfac6f05f7.sock",
+      "directory": "/var/folders/xx/T/t3code-0"
+    },
+    {
+      "stateDir": "C:\\Users\\me\\.t3\\userdata",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "/var/folders/xx/T/t3code-501/18a856536aec3ebfac6f05f7.sock",
+      "directory": "/var/folders/xx/T/t3code-501"
+    },
+    {
+      "stateDir": "C:\\Users\\me\\.t3\\userdata",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "\\\\.\\pipe\\t3code-app-18a856536aec3ebfac6f05f7",
+      "directory": null
+    },
+    {
+      "stateDir": "C:\\Users\\me\\.t3\\userdata",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "\\\\.\\pipe\\t3code-app-18a856536aec3ebfac6f05f7",
+      "directory": null
+    },
+    {
+      "stateDir": "C:\\Users\\me\\.t3\\userdata",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "\\\\.\\pipe\\t3code-app-18a856536aec3ebfac6f05f7",
+      "directory": null
+    },
+    {
+      "stateDir": "",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "/var/folders/xx/T/t3code-e3b0c44298fc/e3b0c44298fc1c149afbf4c8.sock",
+      "directory": "/var/folders/xx/T/t3code-e3b0c44298fc"
+    },
+    {
+      "stateDir": "",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "/var/folders/xx/T/t3code-0/e3b0c44298fc1c149afbf4c8.sock",
+      "directory": "/var/folders/xx/T/t3code-0"
+    },
+    {
+      "stateDir": "",
+      "platform": "darwin",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "/var/folders/xx/T/t3code-501/e3b0c44298fc1c149afbf4c8.sock",
+      "directory": "/var/folders/xx/T/t3code-501"
+    },
+    {
+      "stateDir": "",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "/var/folders/xx/T/t3code-e3b0c44298fc/e3b0c44298fc1c149afbf4c8.sock",
+      "directory": "/var/folders/xx/T/t3code-e3b0c44298fc"
+    },
+    {
+      "stateDir": "",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "/var/folders/xx/T/t3code-0/e3b0c44298fc1c149afbf4c8.sock",
+      "directory": "/var/folders/xx/T/t3code-0"
+    },
+    {
+      "stateDir": "",
+      "platform": "linux",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "/var/folders/xx/T/t3code-501/e3b0c44298fc1c149afbf4c8.sock",
+      "directory": "/var/folders/xx/T/t3code-501"
+    },
+    {
+      "stateDir": "",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": null,
+      "address": "\\\\.\\pipe\\t3code-app-e3b0c44298fc1c149afbf4c8",
+      "directory": null
+    },
+    {
+      "stateDir": "",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 0,
+      "address": "\\\\.\\pipe\\t3code-app-e3b0c44298fc1c149afbf4c8",
+      "directory": null
+    },
+    {
+      "stateDir": "",
+      "platform": "win32",
+      "tempDir": "/var/folders/xx/T",
+      "userId": 501,
+      "address": "\\\\.\\pipe\\t3code-app-e3b0c44298fc1c149afbf4c8",
+      "directory": null
+    }
+  ],
+  "protocol": [
+    {
+      "kind": "request",
+      "value": {
+        "version": 1,
+        "requestId": "a",
+        "type": "open-workspace",
+        "workspaceRoot": "/w",
+        "platform": "darwin"
+      },
+      "valid": true
+    },
+    {
+      "kind": "request",
+      "value": {
+        "version": 1,
+        "requestId": " a ",
+        "type": "open-workspace",
+        "workspaceRoot": " /w ",
+        "platform": "linux"
+      },
+      "valid": true
+    },
+    {
+      "kind": "request",
+      "value": {
+        "version": 1,
+        "requestId": "a",
+        "type": "open-workspace",
+        "workspaceRoot": "/w",
+        "platform": "win32",
+        "extra": 1
+      },
+      "valid": true
+    },
+    {
+      "kind": "request",
+      "value": {
+        "version": 2,
+        "requestId": "a",
+        "type": "open-workspace",
+        "workspaceRoot": "/w",
+        "platform": "linux"
+      },
+      "valid": false
+    },
+    {
+      "kind": "request",
+      "value": {
+        "version": 1,
+        "requestId": "",
+        "type": "open-workspace",
+        "workspaceRoot": "/w",
+        "platform": "linux"
+      },
+      "valid": false
+    },
+    {
+      "kind": "request",
+      "value": {
+        "version": 1,
+        "requestId": "   ",
+        "type": "open-workspace",
+        "workspaceRoot": "/w",
+        "platform": "linux"
+      },
+      "valid": false
+    },
+    {
+      "kind": "request",
+      "value": {
+        "version": 1,
+        "requestId": "a",
+        "type": "open-workspace",
+        "workspaceRoot": "",
+        "platform": "linux"
+      },
+      "valid": false
+    },
+    {
+      "kind": "request",
+      "value": {
+        "version": 1,
+        "requestId": "a",
+        "type": "close",
+        "workspaceRoot": "/w",
+        "platform": "linux"
+      },
+      "valid": false
+    },
+    {
+      "kind": "request",
+      "value": {
+        "version": 1,
+        "requestId": "a",
+        "type": "open-workspace",
+        "workspaceRoot": "/w",
+        "platform": "freebsd"
+      },
+      "valid": false
+    },
+    {
+      "kind": "request",
+      "value": { "version": 1, "requestId": "a", "type": "open-workspace", "platform": "linux" },
+      "valid": false
+    },
+    {
+      "kind": "request",
+      "value": {
+        "version": 1,
+        "requestId": 3,
+        "type": "open-workspace",
+        "workspaceRoot": "/w",
+        "platform": "linux"
+      },
+      "valid": false
+    },
+    {
+      "kind": "request",
+      "value": {
+        "version": "1",
+        "requestId": "a",
+        "type": "open-workspace",
+        "workspaceRoot": "/w",
+        "platform": "linux"
+      },
+      "valid": false
+    },
+    { "kind": "request", "value": [], "valid": false },
+    { "kind": "request", "value": null, "valid": false },
+    { "kind": "request", "value": "text", "valid": false },
+    {
+      "kind": "response",
+      "value": { "version": 1, "requestId": "a", "ok": true, "projectId": "p", "threadId": "t" },
+      "valid": true
+    },
+    {
+      "kind": "response",
+      "value": {
+        "version": 1,
+        "requestId": " a ",
+        "ok": true,
+        "projectId": " p ",
+        "threadId": " t ",
+        "extra": true
+      },
+      "valid": true
+    },
+    {
+      "kind": "response",
+      "value": { "version": 1, "requestId": "a", "ok": true, "projectId": "p" },
+      "valid": false
+    },
+    {
+      "kind": "response",
+      "value": { "version": 1, "requestId": "a", "ok": true, "projectId": "", "threadId": "t" },
+      "valid": false
+    },
+    {
+      "kind": "response",
+      "value": {
+        "version": 1,
+        "requestId": "a",
+        "ok": false,
+        "code": "project-create-failed",
+        "message": "No."
+      },
+      "valid": true
+    },
+    {
+      "kind": "response",
+      "value": {
+        "version": 1,
+        "requestId": "a",
+        "ok": false,
+        "code": "internal-error",
+        "message": "  "
+      },
+      "valid": false
+    },
+    {
+      "kind": "response",
+      "value": { "version": 1, "requestId": "a", "ok": false, "code": "nope", "message": "x" },
+      "valid": false
+    },
+    {
+      "kind": "response",
+      "value": { "version": 1, "requestId": "a", "ok": false, "projectId": "p", "threadId": "t" },
+      "valid": false
+    },
+    {
+      "kind": "response",
+      "value": {
+        "version": 1,
+        "requestId": "a",
+        "ok": true,
+        "code": "internal-error",
+        "message": "x"
+      },
+      "valid": false
+    },
+    {
+      "kind": "response",
+      "value": {
+        "version": 1,
+        "requestId": "a",
+        "ok": false,
+        "code": "request-timeout",
+        "message": "x",
+        "projectId": "p",
+        "threadId": "t"
+      },
+      "valid": true
+    },
+    {
+      "kind": "response",
+      "value": { "version": 3, "requestId": "a", "ok": true, "projectId": "p", "threadId": "t" },
+      "valid": false
+    },
+    { "kind": "response", "value": { "invalid": true }, "valid": false },
+    {
+      "kind": "response",
+      "value": { "version": 1, "requestId": "a", "ok": "true", "projectId": "p", "threadId": "t" },
+      "valid": false
+    },
+    { "kind": "response", "value": [], "valid": false },
+    { "kind": "response", "value": null, "valid": false }
+  ]
+}

@@ -251,7 +251,10 @@ impl GitVcs {
         input.max_output_bytes = command.max_output_bytes;
         input.output_mode = command.output_mode;
         input.append_truncation_marker = command.append_truncation_marker;
-        self.process.run(input).await
+        let observation = crate::observe::start(&input.operation);
+        let result = self.process.run(input).await;
+        observation.finish(result.is_ok());
+        result
     }
 
     pub async fn is_inside_work_tree(&self, cwd: &Path) -> Result<bool, VcsError> {

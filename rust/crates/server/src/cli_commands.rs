@@ -320,6 +320,7 @@ pub fn dispatch(args: &[String], env: &dyn Fn(&str) -> Option<String>) -> Option
         "pair" => Some(pair_command(rest, env)),
         "theme" => Some(crate::cli_theme::theme_command(rest, env)),
         "browser" => Some(crate::cli_browser::browser_command(rest, env)),
+        "app" => Some(crate::cli_app::app_command(rest, env)),
         _ => None,
     }
 }

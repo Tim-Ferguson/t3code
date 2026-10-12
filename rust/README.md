@@ -116,7 +116,7 @@ stop naming it. One host's lifecycle holds the service's lock while it installs 
 local hub is. Tests use a fake `ssh` and a loopback hub (`tests/fixtures/fake-ssh-device.py`, `device_multi_host_tests.rs`).
 OTLP export (`otlp.rs`, `otlp_config.rs`) follows the original's exporters and endpoint resolution (`T3CODE_OTLP_*`, the `OTEL_*` variables, the desktop bootstrap, then settings; `http/json` by default):
 traces (the server's `ws.rpc.*` spans, and a browser's export forwarded as it came, answered 502 when the collector refuses it), logs (the server's `tracing` events, without the original's `fiberId`)
-and metrics. `http/protobuf` is encoded as the original's exporters encode it (`otlp_protobuf.rs`, held byte for byte to the generator's output), for the exporters and for the browser trace route. Also recorded: effect claims and queue wait, terminal sessions and restarts, webhook deliveries, durations, held delay and runs, and secret requests and refs; not the provider session and turn counters or the git command counter and timer. `tools/generate_otlp_fixtures.mjs` makes the original's bodies.
+and metrics. `http/protobuf` is encoded as the original's exporters encode it (`otlp_protobuf.rs`, held byte for byte to the generator's output), for the exporters and for the browser trace route. Also recorded: effect claims and queue wait, terminal sessions and restarts, webhook deliveries, durations, held delay and runs, and secret requests and refs; the provider session and turn counters and the turn timer (`provider_metrics.rs`), and the git command counter and timer (`t3_vcs::set_git_command_observer`, installed when the metrics exporter starts). `tools/generate_otlp_fixtures.mjs` makes the original's bodies.
 Responses are compressed as the original's router does (`response_compression.rs`: brotli, gzip or deflate by `Accept-Encoding`, text-like types of
 1024 bytes or more); a body of unknown length is sent as it is.
 Writing a streamed delta costs what the delta is, not what the thread is: a thread is a small skeleton (`rust_projections`) and one row per element of
@@ -502,3 +502,13 @@ Pull request sync (`pull_request_sync.rs`) also reads a pull request at once whe
 ## Server browser (off by default)
 
 Set `T3CODE_RUST_SERVER_BROWSER=1` to run the environment's own headless browser. Agents' preview tabs open in isolated in-memory contexts of one shared Chromium, people's tabs in persistent per-profile browsers under `<state>/server-browser/profiles`, and viewers watch and take over through `/api/preview-stream/*`. With the switch off the server starts no browser, does not advertise `serverBrowser`, and those routes answer 404. The browser has no network policy yet: tabs reach whatever the machine reaches, and `preview_upload` accepts any absolute path, as in the original (`TODO(original …)` markers name each place). It has only been run against a scripted DevTools endpoint, never a real Chrome. `t3 browser setup` prepares a Linux host (AppArmor profile for Chrome's sandbox, Debian libraries); it needs root and prints the `sudo` line otherwise.
+
+## `t3 app`, project icons, frames in snapshots
+
+`t3 app [path] [--base-dir DIR]` (`cli_app.rs`) asks the running desktop app to open a project over its control socket (`t3_remote::desktop_app_control`, which also holds the socket server with the original's ownership checks). The desktop shell does not serve that socket yet.
+
+A `Project` (the `projects.mutate` result, `GET /api/projects`, the MCP project tools) carries `faviconPath` as the project's own, else the icon found in its workspace (`project_enrichment.rs`); a shell carries only the stored one. `ProjectShell::favicon_path()` and `project_icon()` read both.
+
+The server browser's snapshot lists the trees of the frames a page holds under their `iframe` lines, with `f<n>e<m>` refs. Frames in another process are still a bare `iframe` line.
+
+A server with no configuration answers `server.getConfig` and `subscribeServerConfig` with `ServerSettingsError`, and the keybinding methods with `KeybindingsConfigParseError`.

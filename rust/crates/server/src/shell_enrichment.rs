@@ -9,9 +9,27 @@ use std::{collections::HashSet, sync::Arc};
 /// The enrichment service of the server's store, started with the hosting-account refinement of the
 /// server's settings.
 pub fn service(state: &ApiState) -> Arc<ProjectEnrichment> {
-    ProjectEnrichment::for_store(&state.store, || {
-        Some(crate::repository_identity::forgejo_refine(Host::process_default().with_settings(state.settings.clone())))
-    })
+    service_for(&state.store, state.settings.clone())
+}
+
+/// The same service for a caller that has the store and the settings but no transport state (the MCP tools).
+pub fn service_for(store: &Store, settings: Option<crate::server_settings::SettingsService>) -> Arc<ProjectEnrichment> {
+    ProjectEnrichment::for_store(store, || Some(crate::repository_identity::forgejo_refine(Host::process_default().with_settings(settings))))
+}
+
+/// `ProjectService.toProject` for projects as a client reads them from `projects.mutate`, `GET /api/projects` and the MCP project
+/// tools: the repository identity known so far, and a `faviconPath` that is the project's own when it names one and otherwise the icon
+/// found in its workspace. Both are what is already resolved; the rest is queued, so a project's first read may lack them. A shell
+/// (`enrich_projects`) carries only the identity: its `faviconPath` is the stored one, as in the original's `enrichShell`.
+pub fn hydrate_projects(enrichment: &ProjectEnrichment, projects: &mut [Value]) {
+    for project in projects {
+        let Some(root) = project["workspaceRoot"].as_str().map(str::to_owned) else { continue };
+        let known = enrichment.get_available(&root);
+        project["repositoryIdentity"] = known.repository_identity.map_or(Value::Null, |identity| serde_json::to_value(identity).expect("identity"));
+        if project["faviconPath"].as_str().is_none_or(str::is_empty) {
+            project["faviconPath"] = known.favicon_path.map_or(Value::Null, Value::from);
+        }
+    }
 }
 
 /// Sets each project's `repositoryIdentity` to what is resolved and queues the rest. Answers the

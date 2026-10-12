@@ -3,7 +3,6 @@
     "omitted": {},
     "pending": {},
     "partial": {
-      "preview.clearProfile": "Deletes the profile's storage directory (server_browser_profiles.rs). With the server browser off (T3CODE_RUST_SERVER_BROWSER unset) nothing has the storage open; with it on, the browser closes the profile's tabs first (server_browser_contexts.rs).",
       "preview.open": "Tabs are tracked in memory and the desktop-runtime path works end to end (preview_manager.rs). A `server` runtime tab gets a page only when the server browser is switched on (T3CODE_RUST_SERVER_BROWSER=1, server_browser.rs); off, it is recorded but nothing renders it and `serverBrowser` is not advertised."
     }
   },

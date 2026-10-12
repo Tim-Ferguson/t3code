@@ -86,6 +86,13 @@ impl McpControlTools {
     fn live(&self, id: &str) -> Out {
         let mut project = self.projects().get(id).map_err(|_| mcp_access::unavailable())?.ok_or_else(mcp_access::unavailable)?;
         project["deletedAt"] = Value::Null;
+        self.hydrated(project)
+    }
+    /// A project as `ProjectService` hands it to a tool: with the repository identity and the icon file known so far.
+    fn hydrated(&self, mut project: Value) -> Out {
+        if project["deletedAt"].is_null() {
+            crate::shell_enrichment::hydrate_projects(&crate::shell_enrichment::service_for(&self.store, self.services.settings.clone()), std::slice::from_mut(&mut project));
+        }
         Ok(project)
     }
     fn project_command(kind: &str, id: &str, project_id: &str, fields: Value) -> Result<ProjectCommand, McpFailure> {
@@ -119,7 +126,7 @@ impl McpControlTools {
             fields["scripts"] = scripts.clone();
         }
         let command = Self::project_command("project.create", &id, &id, fields)?;
-        self.projects().apply(&command, (self.clock)()).map_err(project_failure)
+        self.projects().apply(&command, (self.clock)()).map_err(project_failure).and_then(|project| self.hydrated(project))
     }
 
     pub(crate) async fn project_update(&self, scope: &InvocationScope, args: Value) -> Out {
@@ -140,7 +147,7 @@ impl McpControlTools {
             }
         }
         let command = Self::project_command("project.meta.update", &command_id(), &project_id, Value::Object(fields))?;
-        self.projects().apply(&command, (self.clock)()).map_err(project_failure)
+        self.projects().apply(&command, (self.clock)()).map_err(project_failure).and_then(|project| self.hydrated(project))
     }
 
     pub(crate) async fn project_delete(&self, scope: &InvocationScope, args: Value) -> Out {
@@ -151,7 +158,7 @@ impl McpControlTools {
         }
         let fields = if let Some(force) = args.get("force") { json!({"force":force}) } else { json!({}) };
         let command = Self::project_command("project.delete", &command_id(), project_id, fields)?;
-        self.projects().apply(&command, (self.clock)()).map_err(project_failure)
+        self.projects().apply(&command, (self.clock)()).map_err(project_failure).and_then(|project| self.hydrated(project))
     }
 
     pub(crate) async fn project_clone(&self, scope: &InvocationScope, args: Value) -> Out {

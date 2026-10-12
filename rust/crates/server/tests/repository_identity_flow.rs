@@ -126,9 +126,10 @@ fn the_shell_stream_delivers_a_resolved_identity_after_the_snapshot() {
         let plain = h.base.join("plain");
         std::fs::create_dir(&plain).unwrap();
         let mut socket = h.connect(&h.operator).await;
+        // Made in the store: `projects.mutate` hands back the project with what is known of its root, which is a look at the root, and
+        // this flow is about the first look being the snapshot's.
         for (id, root) in [("widgets", &repository), ("plain", &plain)] {
-            let exit = rpc(&mut socket, 1, "projects.mutate", json!({"type":"project.create","commandId":format!("create-{id}"),"projectId":id,"title":id,"workspaceRoot":root})).await;
-            success(&exit);
+            t3_server::project::ProjectService::new(h.store.clone()).mutate(json!({"type":"project.create","commandId":format!("create-{id}"),"projectId":id,"title":id,"workspaceRoot":root}), chrono::Utc::now()).unwrap();
         }
         // The first look at a root queues it; the snapshot says nothing yet.
         send(&mut socket, json!({"_tag":"Request","id":2,"tag":"orchestration.subscribeShell","payload":{"requestCompletionMarker":true},"headers":[]})).await;

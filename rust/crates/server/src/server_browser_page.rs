@@ -162,8 +162,23 @@ struct Shared {
     requests: HashMap<String, (String, String, bool)>,
     refs: Refs,
     closed: bool,
+    /// The default-world execution context of each frame the page has told of (`Runtime.executionContextCreated`).
+    contexts: HashMap<String, i64>,
+    /// The frames the latest snapshot descended into: ordinal `n` of a ref `f<n>e<m>` is `snapshot_frames[n - 1]`.
+    snapshot_frames: Vec<SnapshotFrame>,
     /// Data of a drag the page started, which Chromium holds until a drop is dispatched.
     drag: Option<Value>,
+}
+
+/// A frame below the page that a snapshot listed (the `iframe` of the original's `snapshotFrameForAI`, which lists a frame's own tree under
+/// its `iframe` line). Its refs are `f<ordinal>e<n>`, and an action on one runs in the frame.
+#[derive(Debug, Clone)]
+pub(crate) struct SnapshotFrame {
+    pub frame_id: String,
+    /// The ordinal of the frame holding the `iframe` element (0 for the page's own).
+    pub parent: usize,
+    /// The `iframe` element in its parent's world, to read where the frame sits in the parent's viewport.
+    pub owner: String,
 }
 
 pub(crate) struct Inner {
@@ -210,6 +225,17 @@ fn radix36(mut value: u64) -> String {
     digits.iter().rev().collect()
 }
 
+/// Where the content of the `iframe` this is called on starts in the viewport of the document holding it: its box, inside its border
+/// and padding.
+const FRAME_ORIGIN: &str = "function() { const box = this.getBoundingClientRect(); const style = getComputedStyle(this); const px = (name) => parseFloat(style[name]) || 0; return { x: box.x + this.clientLeft + px('paddingLeft'), y: box.y + this.clientTop + px('paddingTop') }; }";
+
+/// The ordinal of the frame a selector's ref belongs to: `aria-ref=f2e5` is in the second frame a snapshot listed. Anything else,
+/// the page's own refs (`aria-ref=e5`) and every other selector, is the page's own frame, ordinal 0.
+fn frame_of_selector(selector: &str) -> usize {
+    let pattern = regex::Regex::new(r"^\s*aria-ref=f(\d+)e\d+\s*$").expect("a valid pattern");
+    pattern.captures(selector).and_then(|captures| captures[1].parse().ok()).unwrap_or(0)
+}
+
 fn first_line(text: &str) -> String {
     text.lines().next().unwrap_or(text).to_owned()
 }
@@ -218,6 +244,7 @@ impl Shared {
     fn invalidate_refs(&mut self) {
         self.refs.generation = next_ref_generation();
         self.refs.refs.clear();
+        self.snapshot_frames.clear();
     }
 }
 
@@ -265,6 +292,8 @@ impl Page {
                 requests: HashMap::new(),
                 refs: Refs { generation: next_ref_generation(), refs: HashMap::new() },
                 closed: false,
+                contexts: HashMap::new(),
+                snapshot_frames: Vec::new(),
                 drag: None,
             }),
             progress: watch::channel(0).0,
@@ -440,6 +469,21 @@ impl Page {
             "Page.frameAttached" => {
                 self.shared().frames.insert(text(&params["frameId"]));
             }
+            // Where the helper script of a frame runs: the page's own world, not an isolated one an extension or the browser makes.
+            "Runtime.executionContextCreated" => {
+                let context = &params["context"];
+                if let (Some(id), Some(frame), Some(true)) = (context["id"].as_i64(), context["auxData"]["frameId"].as_str(), context["auxData"]["isDefault"].as_bool()) {
+                    self.shared().contexts.insert(frame.to_owned(), id);
+                }
+            }
+            "Runtime.executionContextDestroyed" => {
+                if let Some(id) = params["executionContextId"].as_i64() {
+                    self.shared().contexts.retain(|_, context| *context != id);
+                }
+            }
+            "Runtime.executionContextsCleared" => {
+                self.shared().contexts.clear();
+            }
             "Page.frameDetached" => {
                 let mut shared = self.shared();
                 shared.frames.remove(params["frameId"].as_str().unwrap_or_default());
@@ -542,27 +586,140 @@ impl Page {
 
     /// Evaluates an expression in the page's main world and returns its value, or the failure it threw.
     pub(crate) async fn evaluate_value(&self, expression: String, await_promise: bool) -> OpResult<Value> {
-        let result = self.send("Runtime.evaluate", json!({"expression": expression, "awaitPromise": await_promise, "returnByValue": true})).await?;
+        self.evaluate_in(expression, await_promise, None).await
+    }
+
+    /// `evaluate_value` in the world of an execution context (the page's own when none).
+    async fn evaluate_in(&self, expression: String, await_promise: bool, context: Option<i64>) -> OpResult<Value> {
+        let mut params = json!({"expression": expression, "awaitPromise": await_promise, "returnByValue": true});
+        if let Some(context) = context {
+            params["contextId"] = json!(context);
+        }
+        let result = self.send("Runtime.evaluate", params).await?;
         if let Some(details) = result.get("exceptionDetails") {
             return Err(exception_error(details));
         }
         Ok(result["result"].get("value").cloned().unwrap_or(Value::Null))
     }
 
-    /// Calls a method of the helper script with JSON arguments.
+    /// The execution context of the frame with this ordinal (0 is the page's own, which is the default of a call): a frame the latest
+    /// snapshot listed that has no world now, because it navigated or went, is a stale ref.
+    fn frame_context(&self, ordinal: usize) -> OpResult<Option<i64>> {
+        if ordinal == 0 {
+            return Ok(None);
+        }
+        let shared = self.shared();
+        let frame = shared.snapshot_frames.get(ordinal - 1).ok_or_else(OpError::stale_ref)?;
+        shared.contexts.get(&frame.frame_id).copied().map(Some).ok_or_else(OpError::stale_ref)
+    }
+
+    /// Calls a method of the helper script with JSON arguments. A selector that is the ref of an element in a frame the latest snapshot
+    /// listed runs in that frame, and the point `probe` finds in it is moved into the page's viewport.
     pub(crate) async fn runtime(&self, method: &str, arguments: &[Value], await_promise: bool) -> OpResult<Value> {
-        let arguments: Vec<String> = arguments.iter().map(Value::to_string).collect();
-        self.evaluate_value(format!("globalThis[{}].{method}({})", json!(runtime_key()), arguments.join(",")), await_promise).await
+        let frame = arguments.first().and_then(Value::as_str).map_or(0, frame_of_selector);
+        let context = self.frame_context(frame)?;
+        let rendered: Vec<String> = arguments.iter().map(Value::to_string).collect();
+        let mut result = self.evaluate_in(format!("globalThis[{}].{method}({})", json!(runtime_key()), rendered.join(",")), await_promise, context).await?;
+        if frame != 0 && method == "probe" && result["status"] == "ok" {
+            let (x, y) = self.frame_origin(frame).await?;
+            result["x"] = json!(result["x"].as_f64().unwrap_or_default() + x);
+            result["y"] = json!(result["y"].as_f64().unwrap_or_default() + y);
+        }
+        Ok(result)
+    }
+
+    /// Where the content of a frame starts in the page's viewport: the sum, up the frames, of where each `iframe` element's content box
+    /// starts in the viewport of the frame holding it.
+    async fn frame_origin(&self, mut ordinal: usize) -> OpResult<(f64, f64)> {
+        let (mut x, mut y) = (0.0, 0.0);
+        while ordinal != 0 {
+            let frame = self.shared().snapshot_frames.get(ordinal - 1).cloned().ok_or_else(OpError::stale_ref)?;
+            let called = self.send("Runtime.callFunctionOn", json!({"objectId": frame.owner, "functionDeclaration": FRAME_ORIGIN, "returnByValue": true})).await?;
+            if called.get("exceptionDetails").is_some() {
+                return Err(OpError::stale_ref());
+            }
+            x += called["result"]["value"]["x"].as_f64().unwrap_or_default();
+            y += called["result"]["value"]["y"].as_f64().unwrap_or_default();
+            ordinal = frame.parent;
+        }
+        Ok((x, y))
     }
 
     /// The helper script's result for a selector, as a remote object that later calls can act on.
     pub(crate) async fn runtime_object(&self, method: &str, arguments: &[Value]) -> OpResult<Option<String>> {
+        let frame = arguments.first().and_then(Value::as_str).map_or(0, frame_of_selector);
+        let context = self.frame_context(frame)?;
+        self.object_in(method, arguments, context).await
+    }
+
+    async fn object_in(&self, method: &str, arguments: &[Value], context: Option<i64>) -> OpResult<Option<String>> {
         let arguments: Vec<String> = arguments.iter().map(Value::to_string).collect();
-        let result = self.send("Runtime.evaluate", json!({"expression": format!("globalThis[{}].{method}({})", json!(runtime_key()), arguments.join(","))})).await?;
+        let mut params = json!({"expression": format!("globalThis[{}].{method}({})", json!(runtime_key()), arguments.join(","))});
+        if let Some(context) = context {
+            params["contextId"] = json!(context);
+        }
+        let result = self.send("Runtime.evaluate", params).await?;
         if let Some(details) = result.get("exceptionDetails") {
             return Err(exception_error(details));
         }
         Ok(result["result"]["objectId"].as_str().map(str::to_owned))
+    }
+
+    /// The accessibility tree of the page with the tree of each frame it holds listed under its `iframe` line, as the original lists them
+    /// (`snapshotFrameForAI`): the line gains a `:`, and the frame's lines follow it, indented one level further, their refs
+    /// `f<n>e<m>` for the frame's ordinal `n` in the order the frames are met. A frame that cannot be read (it is in another process, or
+    /// has no helper script yet, or no content) leaves its line as it was. Also the frames met, which the refs of the tree address.
+    async fn snapshot_tree(&self) -> OpResult<(Value, Vec<SnapshotFrame>)> {
+        let mut page = self.runtime("snapshot", &[json!("")], false).await?;
+        let mut frames = Vec::new();
+        let tree = page["tree"].as_str().unwrap_or_default().to_owned();
+        page["tree"] = json!(self.tree_with_frames(0, tree, &mut frames).await?);
+        Ok((page, frames))
+    }
+
+    fn tree_with_frames<'a>(&'a self, ordinal: usize, tree: String, frames: &'a mut Vec<SnapshotFrame>) -> futures_util::future::BoxFuture<'a, OpResult<String>> {
+        Box::pin(async move {
+            let owner_line = regex::Regex::new(r"^(\s*)- iframe (?:\[active\] )?\[ref=([^\]]*)\]").expect("a valid pattern");
+            let mut lines: Vec<String> = Vec::new();
+            for line in tree.split('\n') {
+                let Some(captures) = owner_line.captures(line) else {
+                    lines.push(line.to_owned());
+                    continue;
+                };
+                let (indent, reference) = (captures[1].to_owned(), captures[2].to_owned());
+                let Some((child, child_tree)) = self.read_frame(ordinal, &reference, frames).await? else {
+                    lines.push(line.to_owned());
+                    continue;
+                };
+                let nested = self.tree_with_frames(child, child_tree, frames).await?;
+                lines.push(format!("{line}:"));
+                lines.extend(nested.split('\n').map(|nested| format!("{indent}  {nested}")));
+            }
+            Ok(lines.join("\n"))
+        })
+    }
+
+    /// The frame an `iframe` element holds, its tree and its ordinal, once it is among `frames`; none when it cannot be read.
+    async fn read_frame(&self, parent: usize, reference: &str, frames: &mut Vec<SnapshotFrame>) -> OpResult<Option<(usize, String)>> {
+        let parent_context = match parent {
+            0 => None,
+            parent => match frames.get(parent - 1).and_then(|frame| self.shared().contexts.get(&frame.frame_id).copied()) {
+                Some(context) => Some(context),
+                None => return Ok(None),
+            },
+        };
+        let Ok(Some(owner)) = self.object_in("fileInput", &[json!(format!("aria-ref={reference}"))], parent_context).await else { return Ok(None) };
+        let Ok(described) = self.send("DOM.describeNode", json!({"objectId": owner})).await else { return Ok(None) };
+        let Some(frame_id) = described["node"]["frameId"].as_str() else { return Ok(None) };
+        let Some(context) = self.shared().contexts.get(frame_id).copied() else { return Ok(None) };
+        let ordinal = frames.len() + 1;
+        let Ok(snapshot) = self.evaluate_in(format!("globalThis[{}].snapshot({})", json!(runtime_key()), json!(format!("f{ordinal}"))), false, Some(context)).await else { return Ok(None) };
+        let tree = snapshot["tree"].as_str().unwrap_or_default();
+        if tree.is_empty() {
+            return Ok(None);
+        }
+        frames.push(SnapshotFrame { frame_id: frame_id.to_owned(), parent, owner });
+        Ok(Some((ordinal, tree.to_owned())))
     }
 
     pub async fn title(&self) -> String {
@@ -740,8 +897,8 @@ impl Page {
         let scale = (MAX_SCREENSHOT_WIDTH / (width as f64 * RENDER_SCALE)).min(1.0);
         self.invalidate_refs();
         let generation = self.ref_generation();
-        let (page, data) = tokio::join!(self.runtime("snapshot", &[], false), self.capture_viewport(None, "png", None, scale));
-        let (page, data) = (page?, data?);
+        let (page, data) = tokio::join!(self.snapshot_tree(), self.capture_viewport(None, "png", None, scale));
+        let ((page, frames), data) = (page?, data?);
         if self.ref_generation() != generation {
             return Err(OpError::execution("The page changed while capturing its snapshot. Take another snapshot."));
         }
@@ -761,6 +918,7 @@ impl Page {
             // Only a snapshot nothing invalidated while it ran may hand out refs.
             if shared.refs.generation == generation {
                 shared.refs.refs.extend(issued);
+                shared.snapshot_frames = frames;
             }
         }
         Ok(json!({

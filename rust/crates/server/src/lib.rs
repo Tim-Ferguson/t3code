@@ -62,6 +62,7 @@ mod projection_cache;
 mod projection_rows;
 pub mod project;
 pub mod project_enrichment;
+pub mod provider_metrics;
 pub mod import_status;
 pub mod shell_enrichment;
 pub mod provider_auth_flow;
@@ -254,6 +255,7 @@ mod server_browser_double;
 pub mod server_browser_contexts;
 pub mod server_browser;
 pub mod server_browser_http;
+pub mod cli_app;
 pub mod cli_browser;
 
 pub mod html_render_shared;

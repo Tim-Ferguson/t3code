@@ -116,3 +116,9 @@ pub use worktree_setup::*;
 
 pub mod project_clone;
 pub use project_clone::*;
+
+pub mod project_icon;
+pub use project_icon::*;
+
+pub mod desktop_app_activation;
+pub use desktop_app_activation::*;

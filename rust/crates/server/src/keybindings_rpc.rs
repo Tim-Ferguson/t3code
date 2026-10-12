@@ -17,13 +17,17 @@ pub const METHODS: [&str; 2] = ["server.upsertKeybinding", "server.removeKeybind
 fn decode_failure(message: impl ToString) -> Value {
     json!({"_tag":"SchemaDecodeError","message":message.to_string()})
 }
-fn unavailable() -> Value {
-    json!({"_tag":"NativeServiceUnavailableError","message":"Native configuration is unavailable."})
+/// What the original answers where it cannot reach the keybindings file: a `KeybindingsConfigError` (tagged
+/// `KeybindingsConfigParseError`, the only failure its keybindings methods and `server.getConfig` have), naming the file it keeps
+/// beside the settings, `keybindings.json` in the state directory. A server without a configuration has no other file to name.
+fn unavailable(state_dir: Option<&Path>) -> Value {
+    let path = state_dir.map_or_else(|| Path::new("keybindings.json").to_path_buf(), |directory| directory.join("keybindings.json"));
+    json!({"_tag":"KeybindingsConfigParseError","configPath":path.to_string_lossy(),"detail":"failed to access keybindings config"})
 }
 
 /// The service for the file the server configuration names.
 async fn service_for(config: &Value) -> Result<KeybindingsService, Value> {
-    let path = config["keybindingsConfigPath"].as_str().ok_or_else(unavailable)?;
+    let path = config["keybindingsConfigPath"].as_str().ok_or_else(|| unavailable(None))?;
     Ok(KeybindingsService::shared(Path::new(path)).await)
 }
 
@@ -35,8 +39,8 @@ fn target_rule(target: &ServerKeybindingTarget) -> crate::keybindings::Rule {
     )
 }
 
-pub async fn command(config: Option<&Value>, tag: &str, payload: Value) -> Result<Value, Value> {
-    let config = config.ok_or_else(unavailable)?;
+pub async fn command(config: Option<&Value>, state_dir: Option<&Path>, tag: &str, payload: Value) -> Result<Value, Value> {
+    let config = config.ok_or_else(|| unavailable(state_dir))?;
     let service = service_for(config).await?;
     let resolved = match tag {
         "server.upsertKeybinding" => {

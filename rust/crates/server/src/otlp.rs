@@ -386,6 +386,17 @@ static SERIES: Mutex<Vec<Series>> = Mutex::new(Vec::new());
 pub fn recording() -> bool {
     RECORDING.load(Ordering::Relaxed)
 }
+/// For a flow that runs in a process of its own: records as a running exporter would, and installs the git observer as one does.
+#[doc(hidden)]
+pub fn record_for_flows() {
+    RECORDING.store(true, Ordering::Relaxed);
+    crate::provider_metrics::install_git_observer();
+}
+/// For a flow: what has been recorded so far, as the exporter would send it.
+#[doc(hidden)]
+pub fn recorded_for_flows() -> Vec<Value> {
+    snapshot("0")
+}
 fn with_series(name: &'static str, description: &'static str, attributes: Vec<(String, String)>, new: impl FnOnce() -> State, update: impl FnOnce(&mut State)) {
     let mut series = SERIES.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     if let Some(existing) = series.iter_mut().find(|series| series.name == name && series.attributes == attributes) {
@@ -479,6 +490,7 @@ impl Otlp {
         let traces_exporter = traces.clone().map(|endpoint| Exporter::start(ExporterOptions { label: "OtlpTracer", signal: Signal::Traces, endpoint, max_batch: Some(1000), export_empty: false, shutdown_timeout, body: Box::new(traces_body(resource.clone())) }));
         let metrics_exporter = metrics.clone().map(|endpoint| {
             RECORDING.store(true, Ordering::Relaxed);
+            crate::provider_metrics::install_git_observer();
             Exporter::start(ExporterOptions { label: "OtlpMetrics", signal: Signal::Metrics, endpoint, max_batch: None, export_empty: true, shutdown_timeout, body: Box::new(metrics_body(resource.clone())) })
         });
         let logs_exporter = logs.clone().map(|endpoint| Exporter::start(ExporterOptions { label: "OtlpLogger", signal: Signal::Logs, endpoint, max_batch: Some(1000), export_empty: false, shutdown_timeout, body: Box::new(logs_body(resource.clone())) }));
@@ -648,6 +660,87 @@ pub(crate) mod tests {
         let point = |name: &str| metrics.iter().find(|metric| metric["name"] == name).unwrap_or_else(|| panic!("{name} is recorded: {metrics:?}"))["sum"]["dataPoints"][0].clone();
         assert_eq!(point("t3_orchestration_effect_claims_total")["attributes"], json!([{"key":"result","value":{"stringValue":"empty"}}]));
         assert_eq!(point("t3_secret_refs_consumed_total")["attributes"], json!([{"key":"result","value":{"stringValue":"rejected"}}]));
+    }
+
+    /// The data points of a metric as (attributes, value) rows; a timer's value is its observation count.
+    fn points(metrics: &[Value], name: &str) -> Vec<(std::collections::BTreeMap<String, String>, f64)> {
+        let Some(metric) = metrics.iter().find(|metric| metric["name"] == name) else { return Vec::new() };
+        let kind = if metric.get("sum").is_some() { "sum" } else { "histogram" };
+        metric[kind]["dataPoints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|point| {
+                let attributes = point["attributes"].as_array().unwrap().iter().map(|attribute| (attribute["key"].as_str().unwrap().to_owned(), attribute["value"]["stringValue"].as_str().unwrap().to_owned())).collect();
+                (attributes, point.get("asDouble").or_else(|| point.get("count")).and_then(Value::as_f64).unwrap())
+            })
+            .collect()
+    }
+    fn row(pairs: &[(&str, &str)], value: f64) -> (std::collections::BTreeMap<String, String>, f64) {
+        (pairs.iter().map(|(key, value)| ((*key).to_owned(), (*value).to_owned())).collect(), value)
+    }
+
+    #[test]
+    fn the_provider_and_git_counters_and_timers_are_recorded_with_the_originals_names_and_attributes() {
+        use crate::provider_metrics::{self as provider, Outcome};
+        let _turn = REGISTRY.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        RECORDING.store(true, Ordering::Relaxed);
+        SERIES.lock().unwrap().clear();
+        provider::record_turn("codex", "send", Some("gpt-5.1-codex"), Outcome::Success, Duration::from_millis(40));
+        provider::record_turn("codex", "send", Some("gpt-5.1-codex"), Outcome::Failure, Duration::from_millis(5));
+        provider::record_turn("claudeAgent", "send", Some("claude-opus-4"), Outcome::Interrupt, Duration::from_millis(1));
+        provider::record_turn("claudeAgent", "steer", None, Outcome::Success, Duration::from_millis(1));
+        provider::record_turn("codex", "runtime-request-response", Some("ignored"), Outcome::Success, Duration::from_millis(1));
+        provider::record_session("codex", "open", None, Outcome::Success);
+        provider::record_session("codex", "release", Some("idle_timeout"), Outcome::Success);
+        // Real git, through the core and through the driver, with the observer the server installs when its metrics exporter starts.
+        let directory = tempfile::tempdir().unwrap();
+        provider::install_git_observer();
+        tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(async {
+            let service = crate::vcs_service::VcsService::shared();
+            service.core().init_repo(directory.path()).await.unwrap();
+            let failing = t3_vcs::core::ExecuteGitInput { operation: "Test.rejected".into(), cwd: directory.path().to_path_buf(), args: vec!["rev-parse".into(), "--verify".into(), "no-such-ref".into()], ..Default::default() };
+            assert!(service.core().execute(failing).await.is_err());
+            let allowed = t3_vcs::core::ExecuteGitInput { operation: "Test.allowed".into(), cwd: directory.path().to_path_buf(), args: vec!["rev-parse".into(), "--verify".into(), "no-such-ref".into()], allow_non_zero_exit: true, ..Default::default() };
+            assert_eq!(service.core().execute(allowed).await.unwrap().exit_code, 128);
+            assert!(t3_vcs::GitVcs::new(t3_vcs::VcsProcess::new()).is_inside_work_tree(directory.path()).await.unwrap());
+        });
+        t3_vcs::set_git_command_observer(None);
+        let metrics = snapshot("0");
+        RECORDING.store(false, Ordering::Relaxed);
+        SERIES.lock().unwrap().clear();
+
+        assert_eq!(
+            points(&metrics, "t3_provider_turns_total"),
+            [
+                row(&[("provider", "codex"), ("operation", "send"), ("modelFamily", "gpt"), ("outcome", "success")], 1.0),
+                row(&[("provider", "codex"), ("operation", "send"), ("modelFamily", "gpt"), ("outcome", "failure")], 1.0),
+                row(&[("provider", "claudeAgent"), ("operation", "send"), ("modelFamily", "claude"), ("outcome", "interrupt")], 1.0),
+                row(&[("provider", "claudeAgent"), ("operation", "steer"), ("outcome", "success")], 1.0),
+                row(&[("provider", "codex"), ("operation", "runtime-request-response"), ("modelFamily", "other"), ("outcome", "success")], 1.0),
+            ]
+        );
+        // Only the start of a turn is timed, and the timer carries no outcome.
+        assert_eq!(
+            points(&metrics, "t3_provider_turn_duration"),
+            [
+                row(&[("time_unit", "milliseconds"), ("provider", "codex"), ("operation", "send"), ("modelFamily", "gpt")], 2.0),
+                row(&[("time_unit", "milliseconds"), ("provider", "claudeAgent"), ("operation", "send"), ("modelFamily", "claude")], 1.0),
+            ]
+        );
+        assert_eq!(
+            points(&metrics, "t3_provider_sessions_total"),
+            [row(&[("provider", "codex"), ("operation", "open"), ("outcome", "success")], 1.0), row(&[("provider", "codex"), ("operation", "release"), ("reason", "idle_timeout"), ("outcome", "success")], 1.0)]
+        );
+        let commands = points(&metrics, "t3_git_commands_total");
+        let by_operation = |operation: &str, outcome: &str| commands.iter().find(|(attributes, _)| attributes["operation"] == operation && attributes["outcome"] == outcome).map(|(_, count)| *count);
+        assert_eq!(by_operation("Test.rejected", "failure"), Some(1.0));
+        assert_eq!(by_operation("Test.allowed", "success"), Some(1.0), "a non-zero exit the caller allowed is a success");
+        assert_eq!(by_operation("GitVcsDriver.isInsideWorkTree", "success"), Some(1.0), "the driver's own commands are counted too");
+        assert!(commands.iter().any(|(attributes, count)| attributes["outcome"] == "success" && *count >= 1.0 && attributes["operation"].to_lowercase().contains("init")), "{commands:?}");
+        let timed = points(&metrics, "t3_git_command_duration");
+        assert!(timed.iter().all(|(attributes, count)| attributes.keys().map(String::as_str).collect::<Vec<_>>() == ["operation", "time_unit"] && *count >= 1.0));
+        assert!(["Test.rejected", "Test.allowed"].iter().all(|operation| timed.iter().any(|(attributes, _)| attributes["operation"] == *operation)));
     }
 
     // ---- the exporter against a loopback collector ----
