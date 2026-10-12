@@ -214,6 +214,16 @@ fn shell() -> Shell {
     consume_context::<Shell>()
 }
 
+/// Where the saved connections are kept: an encrypted file in the app's data directory, its key in the macOS keychain. A profile
+/// given a data directory of its own (`T3_UI_DATA_DIR`) keeps the key in that directory instead, so that it never reaches the
+/// person's keychain. A platform with no secret service wired up saves nothing (`t3_desktop::catalog_vault`).
+pub(crate) fn catalog_backend() -> Option<Rc<dyn crate::connection_store::Backend>> {
+    let shell = try_consume_context::<Shell>()?;
+    let own_directory = env("T3_UI_DATA_DIR").is_some_and(|path| !path.trim().is_empty());
+    let keys = t3_desktop::catalog_vault::key_store(&shell.dirs.root, own_directory)?;
+    Some(Rc::new(crate::connection_store::Encrypted(t3_desktop::catalog_vault::Vault::new(shell.dirs.root.join("connection-catalog.json"), keys))))
+}
+
 /// Where the `t3` command goes and what it runs, for the settings row: the app's bundled server program, linked from the app's own
 /// folder into a folder on PATH. `T3_CLI_COMMAND_DIRS` (colon separated) names the folders a link may go in instead of the person's
 /// own, which is how it is tried without touching a real PATH folder. None where the app has no command to offer.

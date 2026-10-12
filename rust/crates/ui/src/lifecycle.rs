@@ -9,12 +9,14 @@ use dioxus::prelude::*;
 use serde_json::json;
 use t3_client::server_lifecycle::{self as logic, Action};
 
-/// Follows `subscribeServerLifecycle` for this connection; it ends with the connection or the stream.
+/// Follows `subscribeServerLifecycle` for this connection while its environment is the open one; it ends with the connection, the
+/// stream, or the window leaving the environment (switching back starts it again).
 pub(crate) fn start(handle: &TransportHandle, state: Store<UiModel>) {
     let Some(owner) = runtime::connection_owner(handle, state) else { return };
-    let Ok(mut wire) = runtime::request_stream(handle, state, "subscribeServerLifecycle", json!({})) else { return };
-    let handle = handle.clone();
-    spawn(async move {
+    let handle = handle.pinned();
+    let Ok(mut wire) = runtime::request_stream(&handle, state, "subscribeServerLifecycle", json!({})) else { return };
+    let link = handle.clone();
+    let task = spawn(async move {
         while let Some(values) = wire.next().await {
             if runtime::connection_owner(&handle, state).as_ref() != Some(&owner) {
                 return;
@@ -25,6 +27,8 @@ pub(crate) fn start(handle: &TransportHandle, state: Store<UiModel>) {
             }
         }
     });
+    // A link follows one lifecycle stream: switching back to an environment takes it up again, and the earlier one ends.
+    runtime::keep_lifecycle(&link, task);
 }
 
 pub(crate) fn apply(handle: &TransportHandle, state: Store<UiModel>, event: &serde_json::Value) {

@@ -304,8 +304,10 @@ fn blur(dom: &mut VirtualDom, label: &str) {
 const VERSION: &str = "0.156.1";
 const TARGET: &str = "test-target";
 
-/// A managed Codex over a loopback release host serving `/package.tgz`; the machine's PATH is a temp directory.
-async fn managed_codex(good: &[u8], gated: Option<(usize, std::sync::Arc<tokio::sync::Notify>, std::sync::Arc<tokio::sync::Notify>)>) -> (Harness, Releases) {
+/// A managed Codex over a loopback release host serving `/package.tgz`; the machine's PATH is a temp directory. `issuer` is the
+/// loopback stand-in for OpenAI that its ChatGPT sign-in uses (the discovery and model list addresses); without one the server
+/// keeps no ChatGPT sign-in at all.
+async fn managed_codex(good: &[u8], gated: Option<(usize, std::sync::Arc<tokio::sync::Notify>, std::sync::Arc<tokio::sync::Notify>)>, issuer: Option<(String, String)>) -> (Harness, Releases) {
     let releases = Releases::start().await;
     let url = match gated {
         Some((first, started, release)) => releases.serve("/package.tgz", Route::Gated { body: good.to_vec(), first, started, release }),
@@ -322,24 +324,48 @@ async fn managed_codex(good: &[u8], gated: Option<(usize, std::sync::Arc<tokio::
                 options.codex_release = Some(Some(asset));
                 options.codex_path = Some(path);
             });
+            if let Some((discovery_url, models_url)) = issuer {
+                // The harness keeps the server's state under `<home>/userdata`.
+                let environment = t3_server::codex_chatgpt_rpc::Environment { environment_id: "manage-fixture".into(), default_return_url: None, discovery_url: Some(discovery_url), resource: None, models_url: Some(models_url), http: reqwest::Client::new() };
+                management.set_chatgpt(t3_server::codex_managed::ChatGptHost { environment: std::sync::Arc::new(environment), state_dir: base.join("userdata") });
+            }
         },
     )
     .await;
     (harness, releases)
 }
 
+/// The address of the sign-in page the server offers, read from a subscription of the test's own (the page never shows it): the
+/// test is the person's browser.
+async fn sign_in_page(socket: &mut support::Socket) -> String {
+    loop {
+        let message = support::next_while(socket, "the ChatGPT sign-in page address").await;
+        assert_ne!(message["_tag"], "Exit", "the sign-in stream ended: {message}");
+        if message["_tag"] != "Chunk" {
+            continue;
+        }
+        support::send(socket, json!({"_tag":"Ack","requestId":1})).await;
+        for state in message["values"].as_array().unwrap() {
+            if let (Some("waiting"), Some(url)) = (state["phase"].as_str(), state["interaction"]["url"].as_str()) {
+                return url.to_owned();
+            }
+        }
+    }
+}
+
 #[tokio::test(flavor = "current_thread")]
-async fn a_managed_runtime_installs_with_progress_cancels_retries_and_says_it_cannot_sign_in() {
+async fn a_managed_runtime_installs_with_progress_cancels_retries_and_signs_in_with_chatgpt() {
     use std::sync::Arc;
     let good = archive(&package(VERSION, TARGET, VERSION));
+    let issuer = super::fake_issuer::Issuer::start().await;
     let (started, release) = (Arc::new(tokio::sync::Notify::new()), Arc::new(tokio::sync::Notify::new()));
-    let (harness, releases) = managed_codex(&good, Some((good.len() / 2, started.clone(), release.clone()))).await;
+    let (harness, releases) = managed_codex(&good, Some((good.len() / 2, started.clone(), release.clone())), Some((issuer.discovery_url(), issuer.models_url()))).await;
     let managed = harness.base.join("tools/codex");
     let token = harness.manager.clone();
+    let mut socket = harness.connect(&token).await;
     let mut page = Page::open(harness, &token, None).await;
     page.select("Codex").await;
     page.wait("T3 Code downloads and manages Codex for you.").await;
-    // The snapshot says plainly that this runtime cannot sign in or run sessions here.
     assert!(page.has("Install Codex"));
 
     click_when_enabled(&mut page.dom, "Install Codex").await;
@@ -361,17 +387,41 @@ async fn a_managed_runtime_installs_with_progress_cancels_retries_and_says_it_ca
     page.wait("Managed by T3 Code \u{b7} v0.156.1.").await;
     assert!(managed.join("0.156.1").exists());
     assert!(page.has("Remove downloaded runtime") && page.has("Reinstall Codex"));
-    // The install is not presented as ready to use: the server's own words about signing in stay on the row.
-    page.wait("Codex is installed. Signing in with ChatGPT is not available in this build.").await;
+    // Installed, the runtime still has no account: the server says so and offers the sign-in it now has (a managed Codex signs
+    // in with ChatGPT on the server itself).
+    page.wait("Sign in with ChatGPT to use Codex.").await;
+    assert!(!page.text().contains("ChatGPT sign-in is not available on this server."), "{}", page.text());
     assert!(!page.text().contains("This provider instance is no longer available."), "no app-wide error from a sign-in stream this provider does not have");
     assert_eq!(page.state.peek().error, None);
+
+    support::send(&mut socket, json!({"_tag":"Request","id":1,"tag":"provider.auth.subscribe","payload":{"instanceId":"codex"},"headers":[]})).await;
+    click_when_enabled(&mut page.dom, "Sign in").await;
+    page.wait("Finish signing in in your browser.").await;
+    assert!(page.has("Cancel sign-in") && page.has("Sign-in callback URL"), "the redirect can be pasted if the page does not return");
+    // The person's browser goes to the issuer, which sends it back to the server's own listener with a code.
+    let url = sign_in_page(&mut socket).await;
+    let returned = reqwest::get(&url).await.unwrap();
+    assert!(returned.status().is_success(), "{}", returned.status());
+    let request = issuer.authorized.lock().unwrap().last().cloned().unwrap();
+    assert_eq!((request["response_type"].as_str(), request["code_challenge_method"].as_str()), ("code", "S256"));
+    page.wait("Signed in as").await;
+    // The signed-in email is hidden behind a placeholder until asked for, and no credential or sign-in secret is ever drawn.
+    let text = page.text();
+    assert!(!text.contains("Signed in as a@example.com"), "{text}");
+    for secret in ["access-1", "refresh-1", request["state"].as_str(), request["code_challenge"].as_str(), "good-code"] {
+        assert!(!text.contains(secret), "{secret} is on the page");
+    }
+    page.click("Toggle account email visibility");
+    assert!(page.text().contains("a@example.com"), "{}", page.text());
+    assert!(page.text().contains("Signed in as a@example.com"), "{}", page.text());
+    drop(socket);
     page.finish().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn removing_a_managed_runtime_asks_in_the_originals_words_and_escape_declines() {
     let good = archive(&package(VERSION, TARGET, VERSION));
-    let (harness, _releases) = managed_codex(&good, None).await;
+    let (harness, _releases) = managed_codex(&good, None, None).await;
     let managed = harness.base.join("tools/codex");
     let token = harness.manager.clone();
     let mut page = Page::open(harness, &token, None).await;

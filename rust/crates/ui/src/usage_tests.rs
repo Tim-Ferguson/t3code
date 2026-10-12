@@ -284,9 +284,10 @@ async fn usage_limits_command_shows_the_providers_limits_from_the_menu_or_typed_
     // The panel is for this thread: another thread does not show it.
     crate::runtime::diff_tests::open_thread(&mut dom, &props, state, "thread-a").await;
     assert!(control(&dom, "Dismiss usage limits").is_none());
-    // A provider with nothing to report is not offered the command.
+    // The other thread's provider (Codex) reports its own account's limits now, so the server offers it the command without any
+    // hub (`withUsageLimitsCommands`); the panel is that provider's own.
     crate::runtime::transport_tests::input_control(&mut dom, "Message", "/usage");
-    assert!(!rendered_text(&dom).contains("Show this provider's usage limits"));
+    wait_for_rendered_text(&mut dom, "Show this provider's usage limits").await;
     fixture.finish(dom).await;
 }
 

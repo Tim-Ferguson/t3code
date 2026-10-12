@@ -1,4 +1,5 @@
 //! The desktop app's shell without a window toolkit. See the modules.
+pub mod catalog_vault;
 pub mod cli_command;
 pub mod control_channel;
 pub mod launch;

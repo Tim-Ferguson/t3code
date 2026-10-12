@@ -7,6 +7,9 @@ mod branch;
 mod changed_files;
 mod client_settings;
 mod command_palette;
+mod connection_store;
+mod saved_connections;
+mod environment_switcher;
 mod composer_banners;
 mod composer_menu;
 mod composer_panels;
@@ -174,6 +177,7 @@ fn Main() -> Element {
     themes::use_themes(state);
     client_settings::use_writer(state);
     font_service::use_fonts(state);
+    connection_store::use_store(state);
     draft_storage::use_writer(state);
     draft_storage::use_native_close_flush(state);
     draft_storage::use_flush_on_unload(state);
@@ -186,6 +190,8 @@ fn Main() -> Element {
             terminal_catalog.hydrate().await;
             client_settings::hydrate(state).await;
             draft_storage::hydrate(state).await;
+            connection_store::hydrate(state).await;
+            connection_store::connect_saved(&transport, state);
             prompt_stash::hydrate(state).await;
             right_panel::hydrate(state).await;
             #[cfg(feature = "desktop")]
@@ -404,19 +410,6 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
     let stage = stage_art::artwork(state);
     // With "Composer context" on, the branch control sits under the composer of an open thread instead of in its header.
     let persist_context_strip = state.client_settings().read().persist_composer_context_strip;
-    let saved_connections: Vec<_> = state
-        .environments()
-        .read()
-        .records
-        .values()
-        .map(|record| {
-            (
-                record.id.clone(),
-                record.label.clone(),
-                record.address.clone(),
-            )
-        })
-        .collect();
     let environment_key = state
         .destination()
         .read()
@@ -436,6 +429,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                 if let Some(variant) = stage { stage_art::Backdrop { key: "{variant:?}", variant } }
                 header { class: "brand", Wordmark {} span { "Code" } stage_art::Pill { state } }
                 {desktop_update_pill()}
+                environment_switcher::Switcher { state, transport: transport.clone() }
                 nav { class: "sidebar-actions",
                     button { title: match &new_thread_hint { Some(hint) => format!("New thread ({hint})"), None => "New thread".to_owned() }, onclick: {let transport=transport.clone();move |_| runtime::new_thread(&transport,state,None)}, "＋ New thread" }
                     button { onclick: move |_| add_project.set(true), "＋ Add project" }
@@ -529,7 +523,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                 match view {
                     View::Connections => rsx! {
                         section { class: "settings-page", settings_common::Tabs { state, current: View::Connections } h1 { "Connections" } p { "Connect to a T3 Code server to work on your projects from this device." }
-                            form { onsubmit: { let transport=transport.clone(); move |event| { event.prevent_default(); let transport=transport.clone(); let address=address(); let credential=token();let pairing=credential_kind()=="pairing";token.set(String::new());spawn(async move { if pairing {runtime::pair_and_connect(transport,state,address,credential).await;}else{runtime::connect(transport,state,address,credential).await;} }); } },
+                            form { onsubmit: { let transport=transport.clone(); move |event| { event.prevent_default(); let transport=transport.clone(); let address=address(); let credential=token();let pairing=credential_kind()=="pairing";let bearer=credential_kind()=="bearer";token.set(String::new());spawn(async move { if pairing {runtime::pair_and_remember(transport,state,address,credential).await;}else if bearer {runtime::connect_remembering(transport,state,address,credential).await;}else{runtime::connect(transport,state,address,credential).await;} }); } },
                                 label { r#for: "server-address", "Server address" }
                                 input { id: "server-address", r#type: "url", required: true, placeholder: "https://your-server", value: "{address}", oninput: move |event| address.set(event.value()) }
                                 label {r#for:"credential-kind","Authentication"}
@@ -545,15 +539,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                             connect_page::Section { state, transport: transport.clone() }
                             access_page::Authorized { state, transport: transport.clone() }
                             ssh_environments::Section { state, transport: transport.clone() }
-                            if !saved_connections.is_empty() { h2 { "Saved connections" }
-                                for (id,label,saved_address) in saved_connections {
-                                    article {class:"connection-row",key:"{id}",
-                                        div {strong {"{label}"} p {class:"muted","{saved_address}"}}
-                                        button {onclick:{let saved_address=saved_address.clone();move |_|{address.set(saved_address.clone());token.set(String::new());credential_kind.set(runtime::default_credential_kind());}},"Use address"}
-                                        button {onclick:{let transport=transport.clone();move |_|{runtime::forget_environment(&transport,state,&id);token.set(String::new());}},"Forget"}
-                                    }
-                                }
-                            }
+                            saved_connections::List { state, transport: transport.clone(), on_use_address: move |saved_address: String| { address.set(saved_address); token.set(String::new()); credential_kind.set(runtime::default_credential_kind()); } }
                         }
                     },
                     View::Providers => rsx! {provider_settings::Providers {state,transport:transport.clone()}},

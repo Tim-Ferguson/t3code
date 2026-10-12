@@ -354,8 +354,12 @@ pub(crate) fn Authentication(
                 }},"Copy sign-in link"}
             }
             if account.active&&!flow.is_null(){button {"aria-label":"Cancel sign-in",disabled,onclick:{let instance=instance.clone();let flow=flow.clone();move |_|dispatch.call(Action{method:"provider.auth.cancel",payload:json!({"instanceId":instance,"flowId":flow}),clear:false,popup:None})},"Cancel sign-in"}}
-            if !account.active&&!account.needs_external_setup&&provider["setup"]["canAuthenticate"]!=false {button {"aria-label":account.start_label.clone(),disabled:account.start_disabled,onclick:{let instance=instance.clone();let selected=account.selected_method.clone();move |_|{
-                let mut payload=json!({"instanceId":instance});if !selected.is_empty(){payload["methodId"]=json!(selected);}dispatch.call(Action{method:"provider.auth.start",payload,clear:false,popup:None});
+            if !account.active&&!account.needs_external_setup&&provider["setup"]["canAuthenticate"]!=false {button {"aria-label":account.start_label.clone(),disabled:account.start_disabled,onclick:{let instance=instance.clone();let selected=account.selected_method.clone();let start_transport=transport.clone();move |_|{
+                let mut payload=json!({"instanceId":instance});if !selected.is_empty(){payload["methodId"]=json!(selected);}
+                // `CodexSetupSection.tsx`: a server on another computer cannot receive the browser's redirect, so this client brings it
+                // back (pasted, or received by the desktop app); one on this computer listens for it itself.
+                payload["callbackMode"]=json!(if runtime::connected_to_loopback(&start_transport){"server"}else{"client"});
+                dispatch.call(Action{method:"provider.auth.start",payload,clear:false,popup:None});
             }},"{account.start_label}"}}
             if account.can_logout {button {"aria-label":"Sign out",disabled:disabled||auth_value.is_none(),onclick:move |_|logout.set(true),"Sign out"}}
             if account.needs_external_setup {if let Some(url)=provider["setup"]["documentationUrl"].as_str(){a {href:url,target:"_blank",rel:"noopener noreferrer","Provider documentation"}}}

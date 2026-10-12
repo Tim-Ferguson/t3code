@@ -75,5 +75,7 @@ t3-remote = { path = "../remote", features = ["test-support"] }
 async-trait = "0.1"
 axum.workspace = true
 tempfile = "3"
+# The fake OpenAI issuer of the managed Codex sign-in tests signs its identity tokens.
+ring = "0.17"
 tokio-tungstenite.workspace = true
 sha2.workspace = true

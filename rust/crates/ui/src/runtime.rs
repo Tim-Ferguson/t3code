@@ -5,7 +5,7 @@ use std::{cell::RefCell, rc::Rc};
 use t3_client::environments::EnvironmentCatalog;
 use t3_client::{
     connection::{
-        ConnectionStatus, EnvironmentEndpoint, Heartbeat, HeartbeatAction, reconnect_delay_ms,
+        ConnectionStatus, EnvironmentEndpoint, Heartbeat, HeartbeatAction,
     },
     rpc::{RequestKind, RpcEvent, RpcSession},
     shell::ShellState,
@@ -98,6 +98,13 @@ pub struct UiModel {
     pub grants: SessionGrantInput,
     pub destination: Option<EnvironmentId>,
     pub environments: EnvironmentCatalog,
+    /// The state of every connected environment but the open one, whose is the flat fields above (`links`).
+    pub parked: std::collections::BTreeMap<EnvironmentId, EnvironmentState>,
+    /// Every connected or connecting environment's status, the open one's included.
+    pub live: std::collections::BTreeMap<EnvironmentId, ConnectionStatus>,
+    /// The saved connections (routes and tokens) kept between runs, and how often they changed.
+    pub saved: crate::connection_store::Saved,
+    pub saved_revision: u64,
     pub error: Option<String>,
     pub draft: String,
     /// Set when a send was refused for the prompt's length; the composer shows it for as long as the prompt is still too long.
@@ -225,6 +232,8 @@ pub struct Transport {
     opened: bool,
     thread_generation: u64,
     destination: Option<EnvironmentId>,
+    /// The environment this link learned it goes to (from its descriptor), before and after its socket is up: whose state it keeps.
+    environment: Option<EnvironmentId>,
     endpoint: Option<EnvironmentEndpoint>,
     bearer_token: String,
     unary_waiters:
@@ -235,6 +244,16 @@ pub struct Transport {
     config_subscription: Option<ConnectionOwner>,
     config_request_id: Option<String>,
     live_config_owner: Option<ConnectionOwner>,
+    /// The task following this link's lifecycle stream, so one link never has two.
+    lifecycle: Option<dioxus::dioxus_core::Task>,
+    /// The link's status while it has no environment to keep it for (a first attempt made in the background).
+    status: ConnectionStatus,
+    /// When the socket opened (the link's clock, milliseconds), for the supervisor to know how long a connection held.
+    opened_at: Option<u64>,
+    /// When the supervisor will try again, while it waits to.
+    retry_at: Option<u64>,
+    /// Ends the wait early.
+    retry_now: Option<futures_channel::oneshot::Sender<()>>,
 }
 struct StreamWaiter {
     sender: futures_channel::mpsc::Sender<Vec<Value>>,
@@ -253,22 +272,12 @@ impl Transport {
         }
     }
 }
-#[derive(Clone, Default)]
-pub struct TransportHandle(Rc<RefCell<Transport>>);
-impl std::ops::Deref for TransportHandle {
-    type Target = Rc<RefCell<Transport>>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-impl PartialEq for TransportHandle {
-    fn eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.0, &other.0)
-    }
-}
+#[path = "links.rs"]
+mod links;
+pub use links::{EnvironmentState, TransportHandle};
+use links::{Slot, environment_of, set_status, slot, status_of};
 
 /// Whether the endpoint in use is on this computer's loopback interface.
-#[cfg(feature = "desktop")]
 pub(crate) fn connected_to_loopback(handle: &TransportHandle) -> bool {
     handle.borrow().endpoint.as_ref().is_some_and(|endpoint| matches!(endpoint.http("").host_str(), Some("127.0.0.1" | "localhost" | "[::1]")))
 }
@@ -324,45 +333,63 @@ pub fn request(
     payload: Value,
     kind: RequestKind,
 ) -> Option<String> {
+    // The link the request is made on is settled here, and what answers it is that link's.
+    let link = handle.pinned();
     let required = match required_scopes(method, &payload) {
         Ok(scopes) => scopes,
         Err(error) => {
-            fail(state, error);
+            links::fail_on(&link, state, error);
             return None;
         }
     };
+    let destination = environment_of(&link, state);
     let allowed = {
         let model = state.peek();
-        model.destination.as_ref().is_some_and(|destination| {
+        destination.as_ref().is_some_and(|destination| {
             required
                 .iter()
                 .all(|scope| model.environments.allows(destination, *scope))
         })
     };
     if !allowed {
-        fail(
+        links::fail_on(
+            &link,
             state,
             "This connection does not have the permission required for this action.",
         );
         return None;
     }
-    let mut transport = handle.borrow_mut();
-    if transport.sender.is_none()
-        || state.peek().status != ConnectionStatus::Connected
-        || transport.destination != state.peek().destination
-    {
-        fail(state, "Connect to your T3 Code server first.");
+    let connected = status_of(&link, state) == ConnectionStatus::Connected;
+    let mut transport = link.borrow_mut();
+    if transport.sender.is_none() || !connected || transport.destination != destination {
+        drop(transport);
+        links::fail_on(&link, state, "Connect to your T3 Code server first.");
         return None;
     }
     let (id, frame) = transport.rpc.request(method, payload, kind);
     if let Some(sender) = transport.sender.as_mut() {
         sender.send(ewebsock::WsMessage::Text(frame.to_string()));
     }
-    // Clearing an error that is not there would still repaint everything that shows it.
-    if state.peek().error.is_some() {
-        state.error().set(None);
-    }
+    drop(transport);
+    clear_error(&link, state);
     Some(id)
+}
+
+/// Clearing an error that is not there would still repaint everything that shows it.
+fn clear_error(link: &TransportHandle, state: Store<UiModel>) {
+    match slot(link) {
+        Slot::Flat => {
+            if state.peek().error.is_some() {
+                state.error().set(None);
+            }
+        }
+        Slot::Parked(environment) => {
+            if let Some(slice) = state.parked().write().get_mut(&environment) {
+                slice.error = None;
+            }
+        }
+        Slot::Nowhere => {}
+    }
 }
 
 fn required_scopes(method: &str, payload: &Value) -> Result<Vec<AuthEnvironmentScope>, String> {
@@ -407,6 +434,8 @@ pub async fn request_value(
     method: &str,
     payload: Value,
 ) -> Result<Value, String> {
+    // The answer is waited for on the link the request went out on, whichever environment the window is on by then.
+    let handle = handle.pinned();
     let id = request(&handle, state, method, payload, RequestKind::Unary).ok_or_else(|| {
         state
             .peek()
@@ -435,6 +464,7 @@ pub async fn request_value_reported(
     method: &str,
     payload: Value,
 ) -> Result<Value, String> {
+    let handle = handle.pinned();
     let id = request(&handle, state, method, payload, RequestKind::Unary).ok_or_else(|| {
         state.peek().error.clone().unwrap_or_else(|| "Request unavailable.".into())
     })?;
@@ -477,6 +507,8 @@ pub struct StreamRequest {
     state: Store<UiModel>,
     destination: EnvironmentId,
     ended: bool,
+    /// Follows its link whichever environment the window is on (a link's own streams), instead of ending when the window leaves it.
+    background: bool,
     _guard: UnaryRequestGuard,
     /// The background-activity scope this stream keeps wanted while it runs (`background_activity`).
     _scope: Option<crate::background_activity::ScopeLease>,
@@ -502,7 +534,7 @@ impl StreamRequest {
         let transport = self._guard.handle.borrow();
         transport.socket_generation == self._guard.generation
             && transport.destination.as_ref() == Some(&self.destination)
-            && self.state.peek().destination.as_ref() == Some(&self.destination)
+            && (self.background || self.state.peek().destination.as_ref() == Some(&self.destination))
     }
     fn interruption(&mut self) -> Option<String> {
         if self.ended {
@@ -556,7 +588,16 @@ pub fn request_stream(
     method: &str,
     payload: Value,
 ) -> Result<StreamRequest, String> {
-    open_stream(handle, state, method, payload, false)
+    open_stream(handle, state, method, payload, false, false)
+}
+/// A stream of the link itself (its shell, its configuration): it goes on while another environment is open, and ends with the link.
+pub(crate) fn request_stream_background(
+    handle: &TransportHandle,
+    state: Store<UiModel>,
+    method: &str,
+    payload: Value,
+) -> Result<StreamRequest, String> {
+    open_stream(handle, state, method, payload, false, true)
 }
 /// A stream whose failure the caller shows itself (`StreamRequest::next` ends with it), so the
 /// app-wide banner does not repeat it.
@@ -566,7 +607,7 @@ pub fn request_stream_reported(
     method: &str,
     payload: Value,
 ) -> Result<StreamRequest, String> {
-    open_stream(handle, state, method, payload, true)
+    open_stream(handle, state, method, payload, true, false)
 }
 fn open_stream(
     handle: &TransportHandle,
@@ -574,7 +615,9 @@ fn open_stream(
     method: &str,
     payload: Value,
     reported: bool,
+    background: bool,
 ) -> Result<StreamRequest, String> {
+    let handle = &handle.pinned();
     let scope_input = payload.clone();
     let id = request(handle, state, method, payload, RequestKind::Stream).ok_or_else(|| {
         state
@@ -613,6 +656,7 @@ fn open_stream(
         state,
         destination,
         ended: false,
+        background,
         _scope: scope,
         _guard: UnaryRequestGuard {
             handle: handle.clone(),
@@ -641,12 +685,51 @@ pub fn connection_owner(
     })
 }
 
+/// The connection a link is on, whichever environment the window is on (`connection_owner` is that, and only while the link is the
+/// window's): what a link's own tasks check to know their socket is still the one they started on.
+fn link_owner(link: &TransportHandle) -> Option<ConnectionOwner> {
+    let transport = link.borrow();
+    let destination = transport.destination.clone()?;
+    Some(ConnectionOwner { generation: transport.generation, socket_generation: transport.socket_generation, destination })
+}
+
 pub fn live_config_active(handle: &TransportHandle, state: Store<UiModel>) -> bool {
     let owner = connection_owner(handle, state);
     let transport = handle.borrow();
     owner.is_some()
         && transport.config_subscription == owner
         && transport.live_config_owner == owner
+}
+
+/// `live_config_active` for a link's own tasks.
+fn link_live_config(link: &TransportHandle) -> bool {
+    let owner = link_owner(link);
+    let transport = link.borrow();
+    owner.is_some() && transport.config_subscription == owner && transport.live_config_owner == owner
+}
+
+fn typed_config_of(link: &TransportHandle, state: Store<UiModel>) -> Option<t3_contracts::ServerConfig> {
+    match slot(link) {
+        Slot::Flat => state.typed_config().peek().clone(),
+        Slot::Parked(environment) => state.peek().parked.get(&environment).and_then(|slice| slice.typed_config.clone()),
+        Slot::Nowhere => None,
+    }
+}
+
+fn set_config(link: &TransportHandle, state: Store<UiModel>, config: t3_contracts::ServerConfig, value: Value) {
+    match slot(link) {
+        Slot::Flat => {
+            state.typed_config().set(Some(config));
+            state.config().set(value);
+        }
+        Slot::Parked(environment) => {
+            if let Some(slice) = state.parked().write().get_mut(&environment) {
+                slice.typed_config = Some(config);
+                slice.config = value;
+            }
+        }
+        Slot::Nowhere => {}
+    }
 }
 
 struct ConfigStreamGuard {
@@ -670,13 +753,13 @@ impl Drop for ConfigStreamGuard {
 }
 
 fn start_config_subscription(handle: &TransportHandle, state: Store<UiModel>) {
-    let Some(owner) = connection_owner(handle, state) else {
+    let Some(owner) = link_owner(handle) else {
         return;
     };
     if handle.borrow().config_subscription.as_ref() == Some(&owner) {
         return;
     }
-    let Ok(mut wire) = request_stream(
+    let Ok(mut wire) = request_stream_background(
         handle,
         state,
         "subscribeServerConfig",
@@ -695,14 +778,14 @@ fn start_config_subscription(handle: &TransportHandle, state: Store<UiModel>) {
     };
     spawn(async move {
         while let Some(values) = wire.next().await {
-            if connection_owner(&guard.handle, state).as_ref() != Some(&guard.owner) {
+            if link_owner(&guard.handle).as_ref() != Some(&guard.owner) {
                 return;
             }
             let values = match values {
                 Ok(values) => values,
                 Err(error) => {
-                    if *state.status().peek() == ConnectionStatus::Connected {
-                        fail(state, error);
+                    if status_of(&guard.handle, state) == ConnectionStatus::Connected {
+                        links::fail_on(&guard.handle, state, error);
                     }
                     return;
                 }
@@ -714,20 +797,22 @@ fn start_config_subscription(handle: &TransportHandle, state: Store<UiModel>) {
             {
                 Ok(events) => events,
                 Err(error) => {
-                    fail(
+                    links::fail_on(
+                        &guard.handle,
                         state,
                         format!("Invalid server configuration update: {error}"),
                     );
                     return;
                 }
             };
-            let mut candidate = state.typed_config().peek().clone();
+            let mut candidate = typed_config_of(&guard.handle, state);
             for event in events {
                 if let Err(error) = project_config(&mut candidate, event, &guard.owner.destination)
                 {
-                    state.status().set(ConnectionStatus::Blocked(error.clone()));
-                    fail(state, error);
-                    if let Some(mut sender) = guard.handle.borrow_mut().sender.take() {
+                    set_status(&guard.handle, state, ConnectionStatus::Blocked(error.clone()));
+                    links::fail_on(&guard.handle, state, error);
+                    let sender = guard.handle.borrow_mut().sender.take();
+                    if let Some(mut sender) = sender {
                         sender.close();
                     }
                     return;
@@ -736,8 +821,7 @@ fn start_config_subscription(handle: &TransportHandle, state: Store<UiModel>) {
             if let Some(config) = candidate {
                 let value = serde_json::to_value(&config).expect("validated configuration");
                 guard.handle.borrow_mut().live_config_owner = Some(guard.owner.clone());
-                state.typed_config().set(Some(config));
-                state.config().set(value);
+                set_config(&guard.handle, state, config, value);
             }
         }
     });
@@ -816,40 +900,31 @@ pub fn response_owner(handle: &TransportHandle, state: Store<UiModel>) -> Option
     })
 }
 
-pub fn forget_environment(
-    handle: &TransportHandle,
-    mut state: Store<UiModel>,
-    destination: &EnvironmentId,
-) {
+/// Ends an environment's connection, whichever environment the window is on, and what the connection kept parked goes with it. The
+/// environment stays known (and saved): it can be connected again. When it was the open one, the window is left on nothing.
+pub fn disconnect_environment(handle: &TransportHandle, mut state: Store<UiModel>, destination: &EnvironmentId) {
+    if let Some(link) = handle.link_of(destination) {
+        link.close();
+    }
+    state.parked().write().remove(destination);
+    state.live().write().remove(destination);
     if state.peek().destination.as_ref() == Some(destination) {
-        let mut transport = handle.borrow_mut();
-        transport.generation += 1;
-        if let Some(mut sender) = transport.sender.take() {
-            sender.close();
-        }
-        transport.rpc.disconnect();
-        transport.fail_waiters();
-        transport.destination = None;
-        transport.endpoint = None;
-        transport.bearer_token.clear();
-        transport.thread_subscription = None;
+        handle.set_active(None);
         let mut model = state.write();
+        save_current_environment(&mut model);
+        model.take_slice();
         model.destination = None;
-        model.shell = ShellState::default();
-        model.thread = ThreadState::default();
-        model.active_thread = None;
-        model.selected_project = None;
-        model.active_draft = None;
-        model.config = Value::Null;
-        model.typed_config = None;
-        model.draft.clear();
-        model.pending_messages.clear();
-        model.pending_launches.clear();
-        model.grants = SessionGrantInput::default();
-        model.error = None;
         model.status = ConnectionStatus::Disconnected;
         model.view = View::Connections;
     }
+}
+
+pub fn forget_environment(
+    handle: &TransportHandle,
+    state: Store<UiModel>,
+    destination: &EnvironmentId,
+) {
+    disconnect_environment(handle, state, destination);
     crate::draft_storage::forget(state, destination.as_str());
     state.environments().write().forget(destination);
     state.sticky_models().write().remove(destination);
@@ -879,13 +954,10 @@ pub fn forget_environment(
     state.attachment_error().set(None);
 }
 
-/// Whether the live connection is to `environment`, so its RPCs and signed URLs apply.
+/// Whether there is a live connection to `environment` (the open one or another that stays connected), so its RPCs and signed URLs apply.
 pub fn connected_to(handle: &TransportHandle, state: Store<UiModel>, environment: &str) -> bool {
-    let transport = handle.borrow();
-    state.peek().status == ConnectionStatus::Connected
-        && transport.sender.is_some()
-        && transport.destination.as_ref().map(EnvironmentId::as_str) == Some(environment)
-        && state.peek().destination.as_ref().map(EnvironmentId::as_str) == Some(environment)
+    let Some(link) = EnvironmentId::new(environment).ok().and_then(|environment| handle.link_of(&environment)) else { return false };
+    status_of(&link, state) == ConnectionStatus::Connected && link.borrow().sender.is_some()
 }
 /// Resolves a server-relative URL (upload and asset URLs) against the connected
 /// environment's own address, so remote and tunnelled connections work. None once the
@@ -899,7 +971,8 @@ pub fn http_url(
     if !connected_to(handle, state, environment) {
         return None;
     }
-    let endpoint = handle.borrow().endpoint.clone()?;
+    let link = handle.link_of(&EnvironmentId::new(environment).ok()?)?;
+    let endpoint = link.borrow().endpoint.clone()?;
     Some(endpoint.http(relative).to_string())
 }
 
@@ -1488,10 +1561,6 @@ fn save_current_environment(model: &mut UiModel) {
                     .drafts
                     .insert(thread.clone(), model.draft.clone());
             }
-            record.cache.shell = model.shell.clone();
-            record.cache.active_thread = model.active_thread.clone();
-            record.cache.selected_project = model.selected_project.clone();
-            record.cache.thread = model.thread.clone();
         }
     }
 }
@@ -1708,40 +1777,75 @@ enum SocketWake {
 }
 
 fn interrupt_connection(handle: &TransportHandle, state: Store<UiModel>, reason: &str) {
-    let mut transport = handle.borrow_mut();
-    if let Some(mut sender) = transport.sender.take() {
-        sender.close();
+    let link = handle.pinned();
+    {
+        let mut transport = link.borrow_mut();
+        if let Some(mut sender) = transport.sender.take() {
+            sender.close();
+        }
+        transport.rpc.disconnect();
+        transport.fail_waiters();
     }
-    transport.rpc.disconnect();
-    transport.fail_waiters();
-    state
-        .status()
-        .set(ConnectionStatus::Interrupted(reason.to_owned()));
-    state.pending_messages().write().clear();
-    state.pending_launches().write().clear();
+    set_status(&link, state, ConnectionStatus::Interrupted(reason.to_owned()));
+    clear_pending(&link, state);
+}
+
+/// A request in flight when its connection drops is not replayed, so nothing waits on it any more.
+fn clear_pending(link: &TransportHandle, state: Store<UiModel>) {
+    match slot(link) {
+        Slot::Flat => {
+            state.pending_messages().write().clear();
+            state.pending_launches().write().clear();
+        }
+        Slot::Parked(environment) => {
+            if let Some(slice) = state.parked().write().get_mut(&environment) {
+                slice.pending_messages.clear();
+                slice.pending_launches.clear();
+            }
+        }
+        Slot::Nowhere => {}
+    }
 }
 
 /// A bootstrap credential is exchanged once; it never becomes an ordinary
 /// Authorization header or a WebSocket query parameter.
-/// Ends the connection in use and leaves the window at "Connecting…" before a switch to another environment begins, so that
-/// whoever then waits for the new connection does not mistake the old one, still shown as connected, for it.
+/// Leaves the window at "Connecting…" before a switch to another environment begins, so that whoever then waits for the new
+/// connection does not mistake the old one, still shown as connected, for it. The old one stays connected, parked.
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn begin_connection(handle: &TransportHandle, state: Store<UiModel>) {
-    handle.borrow_mut().generation += 1;
-    reset_for_connect(handle, state, false);
+    links::park_active(handle, state);
+    state.status().set(ConnectionStatus::Connecting);
+    state.error().set(None);
 }
 
-pub async fn pair_and_connect(
+/// A link for a connection to `address` that the window is on: the one that already goes to that address (its tasks are superseded),
+/// or a new one. The environment that was open stays connected, parked.
+fn open_activated_link(handle: &TransportHandle, state: Store<UiModel>, address: &str) -> TransportHandle {
+    let link = handle.open_link(EnvironmentEndpoint::new(address).ok().as_ref());
+    link.borrow_mut().generation += 1;
+    links::activate(&link, state);
+    link
+}
+
+pub async fn pair_and_connect(handle: TransportHandle, state: Store<UiModel>, address: String, credential: String) {
+    pair_and_connect_with(handle, state, address, credential, false).await;
+}
+
+/// `pair_and_connect` for a server the person added: the token the pairing credential was exchanged for is saved with the
+/// environment (`connection_store`), so that the connection comes back without pairing again.
+pub async fn pair_and_remember(handle: TransportHandle, state: Store<UiModel>, address: String, credential: String) {
+    pair_and_connect_with(handle, state, address, credential, true).await;
+}
+
+async fn pair_and_connect_with(
     handle: TransportHandle,
     state: Store<UiModel>,
     address: String,
     credential: String,
+    remember: bool,
 ) {
-    let generation = {
-        let mut transport = handle.borrow_mut();
-        transport.generation += 1;
-        transport.generation
-    };
+    let handle = open_activated_link(&handle, state, &address);
+    let generation = handle.borrow().generation;
     reset_for_connect(&handle, state, false);
     let result=async {
         if credential.trim().is_empty(){return Err("Enter the pairing credential generated by this server.".into());}
@@ -1772,10 +1876,10 @@ pub async fn pair_and_connect(
         return;
     }
     match result {
-        Ok(token) => connect(handle, state, address, token).await,
+        Ok(token) => connect_on(handle, state, vec![Route { address, token }], remember).await,
         Err(error) => {
-            state.status().set(ConnectionStatus::Blocked(error.clone()));
-            fail(state, error);
+            set_status(&handle, state, ConnectionStatus::Blocked(error.clone()));
+            links::fail_on(&handle, state, error);
         }
     }
 }
@@ -1818,46 +1922,168 @@ pub async fn connect(
     address: String,
     token: String,
 ) {
+    connect_with(handle, state, address, token, false).await;
+}
+
+/// `connect` with a bearer token the person typed in: the connection is saved with its token once it is made.
+pub async fn connect_remembering(handle: TransportHandle, state: Store<UiModel>, address: String, token: String) {
+    connect_with(handle, state, address, token, true).await;
+}
+
+async fn connect_with(
+    handle: TransportHandle,
+    state: Store<UiModel>,
+    address: String,
+    token: String,
+    remember: bool,
+) {
+    let link = open_activated_link(&handle, state, &address);
+    connect_on(link, state, vec![Route { address, token }], remember).await;
+}
+
+/// Connects to a server and keeps it connected without making it the window's: the environment that is open stays open. The
+/// connection is tried again for as long as it is lost, as any other.
+pub async fn connect_in_background(handle: TransportHandle, state: Store<UiModel>, address: String, token: String) {
+    connect_routes_in_background(handle, state, vec![Route { address, token }], None).await;
+}
+
+/// `connect_in_background` for an environment with several routes, preferred first: a lost connection tries the others at once, and
+/// waits (with the original's backoff) only when none answers. When the environment is known (a saved one), the connection is its
+/// from the start: it is listed as connecting and as lost while it cannot be reached, and a route that answers as another
+/// environment is refused before its token is sent.
+pub async fn connect_routes_in_background(handle: TransportHandle, state: Store<UiModel>, routes: Vec<Route>, environment: Option<EnvironmentId>) {
+    let Some(first) = routes.first() else { return };
+    if environment.as_ref().is_some_and(|environment| handle.link_of(environment).is_some()) {
+        return;
+    }
+    let link = handle.open_link(EnvironmentEndpoint::new(&first.address).ok().as_ref());
+    link.borrow_mut().generation += 1;
+    if let Some(environment) = environment {
+        link.borrow_mut().environment = Some(environment.clone());
+        if !matches!(slot(&link), Slot::Flat) {
+            state.parked().write().entry(environment).or_default();
+        }
+        set_status(&link, state, ConnectionStatus::Connecting);
+    }
+    connect_on(link, state, routes, false).await;
+}
+
+/// One way to reach an environment: an address and the token it takes. The token is a secret.
+#[derive(Clone)]
+pub struct Route {
+    pub address: String,
+    pub token: String,
+}
+
+/// The link's connection and its reconnecting, until the link is superseded or ended (`EnvironmentSupervisor`): a lost connection
+/// tries the next route at once, and when a whole pass of the routes has failed it waits `retry_delay_ms` of the failures in a row
+/// (`t3_client::supervisor`), which a connection that held for thirty seconds starts over. An explicit retry skips the wait.
+async fn connect_on(
+    link: TransportHandle,
+    state: Store<UiModel>,
+    routes: Vec<Route>,
+    mut remember: bool,
+) {
     let generation = {
-        let mut transport = handle.borrow_mut();
+        let mut transport = link.borrow_mut();
         transport.generation += 1;
         transport.generation
     };
-    let mut failures = 0;
+    let clock = link.clock();
+    let mut backoff = t3_client::supervisor::Backoff::default();
+    let (mut route, mut failed_in_a_row) = (0usize, 0usize);
     loop {
+        let Route { address, token } = routes[route].clone();
         connect_once(
-            handle.clone(),
+            link.clone(),
             state,
-            address.clone(),
-            token.clone(),
+            address,
+            token,
             generation,
+            remember,
         )
         .await;
-        if handle.borrow().generation != generation
-            || !matches!(&state.peek().status, ConnectionStatus::Interrupted(_))
+        // Saved once, by the attempt that got through.
+        if link.borrow().opened {
+            remember = false;
+        }
+        if link.borrow().generation != generation
+            || !matches!(status_of(&link, state), ConnectionStatus::Interrupted(_))
         {
             return;
         }
-        if handle.borrow().opened {
-            failures = 0;
+        if link.borrow().opened {
+            // It was a connection: the routes start again from the preferred one, and the failures it ended are counted against its
+            // length (`Backoff::failed`).
+            failed_in_a_row = 0;
+            let held_from = link.borrow().opened_at;
+            if let Some(held_from) = held_from {
+                backoff.established(held_from);
+            }
         }
-        delay(reconnect_delay_ms(failures)).await;
-        failures = failures.saturating_add(1);
-        if handle.borrow().generation != generation {
+        failed_in_a_row += 1;
+        let (next, wait) = t3_client::supervisor::next_route(routes.len(), route, failed_in_a_row);
+        route = next;
+        if wait {
+            let delay = backoff.failed((clock.now)(), random());
+            link.borrow_mut().retry_at = Some((clock.now)() + delay);
+            let retry_now = wait_for_retry(&link, &clock, delay).await;
+            link.borrow_mut().retry_at = None;
+            if retry_now {
+                backoff.reset();
+                failed_in_a_row = 0;
+                route = 0;
+            }
+        }
+        if link.borrow().generation != generation {
             return;
         }
     }
 }
 
+/// Waits for `delay` milliseconds of the link's clock, or for an explicit retry; whether it was the retry.
+async fn wait_for_retry(link: &TransportHandle, clock: &links::Clock, delay: u64) -> bool {
+    let (sender, receiver) = futures_channel::oneshot::channel();
+    link.borrow_mut().retry_now = Some(sender);
+    let sleep = (clock.sleep)(delay);
+    match futures_util::future::select(sleep, receiver).await {
+        futures_util::future::Either::Left(_) => false,
+        futures_util::future::Either::Right((retry, _)) => retry.is_ok(),
+    }
+}
+
+/// Asks a connection that is waiting to try again to try now, and to start its waits over (the "Retry" of the Connections page).
+pub fn retry_now(handle: &TransportHandle, environment: &EnvironmentId) {
+    if let Some(link) = handle.link_of(environment) {
+        retry_link_now(&link);
+    }
+}
+
+fn retry_link_now(link: &TransportHandle) {
+    let sender = link.borrow_mut().retry_now.take();
+    if let Some(sender) = sender {
+        let _ = sender.send(());
+    }
+}
+
+/// A number in [0, 1) for the spread of retries.
+fn random() -> f64 {
+    #[cfg(test)]
+    if let Some(value) = TEST_RANDOM.with(|value| value.get()) {
+        return value;
+    }
+    (uuid::Uuid::new_v4().as_u128() >> 75) as f64 / (1u64 << 53) as f64
+}
+#[cfg(test)]
+thread_local! {
+    pub(crate) static TEST_RANDOM: std::cell::Cell<Option<f64>> = const { std::cell::Cell::new(None) };
+}
+
 /// Whether this attempt retries the connection that was lost: the same server, after it was
 /// interrupted. Then what the person was looking at stays on screen, labelled as disconnected,
 /// rather than the app emptying itself (and saying "Add a project") for as long as the server is down.
-fn retries_lost_connection(handle: &TransportHandle, state: Store<UiModel>, address: &str) -> bool {
-    let model = state.peek();
-    matches!(model.status, ConnectionStatus::Interrupted(_))
-        && model.destination.is_some()
-        && handle.borrow().endpoint.is_some()
-        && handle.borrow().endpoint == EnvironmentEndpoint::new(address).ok()
+fn retries_lost_connection(link: &TransportHandle, state: Store<UiModel>, _address: &str) -> bool {
+    matches!(status_of(link, state), ConnectionStatus::Interrupted(_)) && environment_of(link, state).is_some()
 }
 
 /// What an environment's view shows before the environment has answered: nothing.
@@ -1873,9 +2099,9 @@ fn clear_visible(model: &mut UiModel) {
     model.draft.clear();
 }
 
-fn reset_for_connect(handle: &TransportHandle, mut state: Store<UiModel>, keep_visible: bool) {
+fn reset_for_connect(link: &TransportHandle, mut state: Store<UiModel>, keep_visible: bool) {
     {
-        let mut transport = handle.borrow_mut();
+        let mut transport = link.borrow_mut();
         if let Some(mut sender) = transport.sender.take() {
             sender.close();
         }
@@ -1887,21 +2113,38 @@ fn reset_for_connect(handle: &TransportHandle, mut state: Store<UiModel>, keep_v
         transport.thread_subscription = None;
         transport.destination = None;
     }
-    {
-        let mut model = state.write();
-        save_current_environment(&mut model);
-        if let Some(destination) = model.destination.clone() {
-            model.environments.revoke(&destination);
-        }
-        if !keep_visible {
-            clear_visible(&mut model);
-        }
-        model.status = ConnectionStatus::Connecting;
-        model.error = None;
-        model.pending_messages.clear();
-        model.pending_launches.clear();
-        model.grants = SessionGrantInput::default();
+    let environment = environment_of(link, state);
+    if let Some(environment) = &environment {
+        state.environments().write().revoke(environment);
     }
+    match slot(link) {
+        Slot::Flat => {
+            let mut model = state.write();
+            save_current_environment(&mut model);
+            if !keep_visible {
+                clear_visible(&mut model);
+            }
+            model.status = ConnectionStatus::Connecting;
+            model.error = None;
+            model.pending_messages.clear();
+            model.pending_launches.clear();
+            model.grants = SessionGrantInput::default();
+        }
+        Slot::Parked(environment) => {
+            if let Some(slice) = state.parked().write().get_mut(&environment) {
+                if !keep_visible {
+                    *slice = EnvironmentState::default();
+                }
+                slice.status = ConnectionStatus::Connecting;
+                slice.error = None;
+                slice.pending_messages.clear();
+                slice.pending_launches.clear();
+                slice.grants = SessionGrantInput::default();
+            }
+        }
+        Slot::Nowhere => {}
+    }
+    set_status(link, state, ConnectionStatus::Connecting);
 }
 
 async fn connect_once(
@@ -1910,19 +2153,24 @@ async fn connect_once(
     address: String,
     token: String,
     generation: u64,
+    remember: bool,
 ) {
+    let handle = handle.pinned();
     let keep_visible = retries_lost_connection(&handle, state, &address);
     reset_for_connect(&handle, state, keep_visible);
     let endpoint = match EnvironmentEndpoint::new(&address) {
         Ok(endpoint) => endpoint,
         Err(error) => {
-            fail(state, error.to_string());
-            state.status().set(ConnectionStatus::Disconnected);
-            state.view().set(View::Connections);
+            links::fail_on(&handle, state, error.to_string());
+            set_status(&handle, state, ConnectionStatus::Disconnected);
+            if matches!(slot(&handle), Slot::Flat) {
+                state.view().set(View::Connections);
+            }
             return;
         }
     };
     let client = reqwest::Client::new();
+    let known_environment = handle.borrow().environment.clone();
     let authorization = async {
         let descriptor =
             authenticated_json(&client, &endpoint, ".well-known/t3/environment", "", false).await?;
@@ -1938,6 +2186,13 @@ async fn connect_once(
         let label = descriptor["label"].as_str().unwrap_or(&address).to_owned();
         if handle.borrow().generation != generation {
             return Err("Connection superseded.".to_owned());
+        }
+        // The routes of a link are one environment's: an address that answers as another environment is not another way to it, and
+        // the token of the route is not sent to it.
+        if let Some(known) = &known_environment {
+            if *known != destination {
+                return Err(format!("That address reaches {label}, a different environment. Add it as its own environment instead."));
+            }
         }
         state
             .peek()
@@ -1973,22 +2228,25 @@ async fn connect_once(
             let unreachable = error.starts_with("Could not reach your T3 Code server:");
             if !unreachable {
                 // Refused, not lost: nothing of the last environment is the person's to see any more.
-                clear_visible(&mut state.write());
+                clear_slice(&handle, state);
             }
-            state.status().set(
+            set_status(
+                &handle,
+                state,
                 if unreachable {
                     ConnectionStatus::Interrupted(error.clone())
                 } else {
                     ConnectionStatus::Blocked(error.clone())
                 },
             );
-            if matches!(*state.status().peek(), ConnectionStatus::Blocked(_)) {
+            if matches!(status_of(&handle, state), ConnectionStatus::Blocked(_)) && matches!(slot(&handle), Slot::Flat) {
                 state.view().set(View::Connections);
             }
-            fail(state, error);
+            links::fail_on(&handle, state, error);
             return;
         }
     };
+    let saved_label = label.clone();
     let registration =
         state
             .environments()
@@ -1996,37 +2254,66 @@ async fn connect_once(
             .register(&endpoint, destination.clone(), label, protocol);
     if let Err(error) = registration {
         let error = error.to_string();
-        state.status().set(ConnectionStatus::Blocked(error.clone()));
-        fail(state, error);
+        set_status(&handle, state, ConnectionStatus::Blocked(error.clone()));
+        links::fail_on(&handle, state, error);
         return;
     }
-    let cache = state.peek().environments.records[&destination]
-        .cache
-        .clone();
-    {
-        let mut model = state.write();
-        if model.destination.as_ref() != Some(&destination) {
-            model.config = Value::Null;
-            model.typed_config = None;
+    if remember {
+        crate::connection_store::remember(state, endpoint.http("").as_str(), &destination, &saved_label, &token);
+    }
+    // One connection per environment: an address that goes to an environment already connected another way adds nothing, and one
+    // that goes to an environment whose connection is lost takes it over, with what that connection kept.
+    if let Some(other) = handle.link_of(&destination).filter(|other| other.id() != handle.id()) {
+        let was_open = handle.id().is_some() && handle.id() == handle.active_id();
+        if status_of(&other, state) == ConnectionStatus::Connected {
+            handle.close();
+            if was_open {
+                switch_to_link(&other, state);
+            }
+            return;
         }
-        model.shell = cache.shell;
-        model.thread = cache.thread;
-        model.active_thread = cache.active_thread;
-        model.selected_project = cache.selected_project;
-        model.active_draft = None;
-        model.draft = model
+        links::take_over(&handle, &other, state);
+    }
+    handle.borrow_mut().environment = Some(destination.clone());
+    let draft_of = |model: &UiModel| {
+        model
             .active_thread
             .as_ref()
-            .and_then(|thread| cache.drafts.get(thread))
+            .and_then(|thread| model.environments.records.get(&destination).and_then(|record| record.cache.drafts.get(thread)))
             .cloned()
-            .unwrap_or_default();
-        model.destination = Some(destination.clone());
-        model
-            .environments
-            .set_session(&destination, grants.clone())
-            .expect("registered environment");
+            .unwrap_or_default()
+    };
+    match slot(&handle) {
+        Slot::Flat => {
+            let mut model = state.write();
+            if model.destination.as_ref() != Some(&destination) {
+                model.config = Value::Null;
+                model.typed_config = None;
+            }
+            model.active_draft = None;
+            model.draft = draft_of(&model);
+            model.destination = Some(destination.clone());
+            model.grants = grants.clone();
+            model
+                .environments
+                .set_session(&destination, grants.clone())
+                .expect("registered environment");
+        }
+        Slot::Parked(_) | Slot::Nowhere => {
+            let mut model = state.write();
+            let slice = model.parked.entry(destination.clone()).or_default();
+            slice.status = ConnectionStatus::Connecting;
+            slice.grants = grants.clone();
+            model
+                .environments
+                .set_session(&destination, grants.clone())
+                .expect("registered environment");
+        }
     }
-    crate::draft_storage::restore_destination(state);
+    set_status(&handle, state, ConnectionStatus::Connecting);
+    if matches!(slot(&handle), Slot::Flat) {
+        crate::draft_storage::restore_destination(state);
+    }
     let (wake_sender, mut wake_receiver) = futures_channel::mpsc::unbounded::<SocketWake>();
     let heartbeat_sender = wake_sender.clone();
     let socket_url = endpoint.socket(Some(&ticket), client_surface());
@@ -2039,10 +2326,8 @@ async fn connect_once(
     ) {
         Ok(socket) => socket,
         Err(error) => {
-            fail(state, error.to_string());
-            state
-                .status()
-                .set(ConnectionStatus::Interrupted(error.to_string()));
+            links::fail_on(&handle, state, error.to_string());
+            set_status(&handle, state, ConnectionStatus::Interrupted(error.to_string()));
             return;
         }
     };
@@ -2053,12 +2338,12 @@ async fn connect_once(
         transport.endpoint = Some(endpoint);
         transport.bearer_token = token;
     }
-    state.grants().set(grants);
     // This timer never writes render state while the connection is healthy.
     // Socket traffic cannot postpone the protocol heartbeat.
+    let heartbeat_clock = handle.clock();
     spawn(async move {
         loop {
-            delay(5000).await;
+            (heartbeat_clock.sleep)(5000).await;
             if heartbeat_sender
                 .unbounded_send(SocketWake::Heartbeat)
                 .is_err()
@@ -2076,8 +2361,13 @@ async fn connect_once(
             match event {
                 ewebsock::WsEvent::Opened => {
                     heartbeat.reset();
-                    handle.borrow_mut().opened = true;
-                    state.status().set(ConnectionStatus::Connected);
+                    {
+                        let now = (handle.clock().now)();
+                        let mut transport = handle.borrow_mut();
+                        transport.opened = true;
+                        transport.opened_at = Some(now);
+                    }
+                    set_status(&handle, state, ConnectionStatus::Connected);
                     request(
                         &handle,
                         state,
@@ -2097,9 +2387,12 @@ async fn connect_once(
                         json!({"requestCompletionMarker":true}),
                         RequestKind::Stream,
                     );
-                    let active = state.peek().active_thread.clone();
-                    if let Some(active) = active {
-                        select_thread(&handle, state, active);
+                    // Only the open environment has a thread open.
+                    if matches!(slot(&handle), Slot::Flat) {
+                        let active = state.peek().active_thread.clone();
+                        if let Some(active) = active {
+                            select_thread(&handle, state, active);
+                        }
                     }
                 }
                 ewebsock::WsEvent::Message(ewebsock::WsMessage::Text(text)) => {
@@ -2129,7 +2422,7 @@ async fn connect_once(
                                 apply_rpc_event(&handle, state, event);
                             }
                         }
-                        Err(error) => fail(state, error.to_string()),
+                        Err(error) => links::fail_on(&handle, state, error.to_string()),
                     }
                 }
                 ewebsock::WsEvent::Closed | ewebsock::WsEvent::Error(_) => {
@@ -2144,7 +2437,7 @@ async fn connect_once(
             return;
         }
         match wake {
-            Some(SocketWake::Heartbeat) if state.peek().status == ConnectionStatus::Connected => {
+            Some(SocketWake::Heartbeat) if status_of(&handle, state) == ConnectionStatus::Connected => {
                 match heartbeat.tick() {
                     HeartbeatAction::Ping => {
                         if let Some(sender) = handle.borrow_mut().sender.as_mut() {
@@ -2166,6 +2459,62 @@ async fn connect_once(
             Some(_) => {}
             None => return,
         }
+    }
+}
+
+/// What an environment's view shows before the environment has answered, for the link's own slice.
+fn clear_slice(link: &TransportHandle, mut state: Store<UiModel>) {
+    match slot(link) {
+        Slot::Flat => clear_visible(&mut state.write()),
+        Slot::Parked(environment) => {
+            if let Some(slice) = state.parked().write().get_mut(&environment) {
+                *slice = EnvironmentState::default();
+            }
+        }
+        Slot::Nowhere => {}
+    }
+}
+
+/// Makes a connected environment the one the window is on. Nothing is asked of the others, and nothing of this one is lost: its
+/// shell has kept arriving while it was away. Only the open environment has a thread stream and a lifecycle stream, which this one
+/// takes up again. Returns whether there is such an environment.
+pub fn switch_to_environment(handle: &TransportHandle, state: Store<UiModel>, environment: &EnvironmentId) -> bool {
+    match handle.link_of(environment) {
+        Some(link) => {
+            switch_to_link(&link, state);
+            true
+        }
+        None => false,
+    }
+}
+
+fn switch_to_link(link: &TransportHandle, state: Store<UiModel>) {
+    links::activate(link, state);
+    if status_of(link, state) == ConnectionStatus::Connected {
+        resubscribe_thread(link, state);
+        crate::lifecycle::start(link, state);
+    }
+}
+
+/// Asks again for the open thread, without clearing what is drawn of it: the server's snapshot replaces it.
+fn resubscribe_thread(link: &TransportHandle, state: Store<UiModel>) {
+    let Some(thread_id) = state.peek().active_thread.clone() else { return };
+    cancel_thread_subscription(link);
+    let id = request(
+        link,
+        state,
+        "orchestration.subscribeThread",
+        json!({"threadId":thread_id,"requestCompletionMarker":true,"acceptBoundedSnapshot":true}),
+        RequestKind::Stream,
+    );
+    link.borrow_mut().thread_subscription = id;
+}
+
+/// Keeps the one task following a link's lifecycle stream: a task started before it is ended.
+pub(crate) fn keep_lifecycle(link: &TransportHandle, task: dioxus::dioxus_core::Task) {
+    let previous = link.borrow_mut().lifecycle.replace(task);
+    if let Some(previous) = previous {
+        previous.cancel();
     }
 }
 
@@ -2194,16 +2543,14 @@ fn apply_rpc_event(handle: &TransportHandle, state: Store<UiModel>, event: RpcEv
                 let decoded: Result<Vec<ShellStreamItem>, _> =
                     values.into_iter().map(serde_json::from_value).collect();
                 match decoded {
-                    Ok(items) => {
-                        let mut shell_store = state.shell();
-                        let mut shell = shell_store.write();
-                        for item in items {
-                            shell.apply(item);
-                        }
-                    }
-                    Err(error) => fail(state, format!("Could not decode shell update: {error}")),
+                    Ok(items) => apply_shell(handle, state, items),
+                    Err(error) => links::fail_on(handle, state, format!("Could not decode shell update: {error}")),
                 }
             } else if method == "orchestration.subscribeThread" {
+                // The open thread is the open environment's: a link the window has left has no thread stream (it was cancelled on leaving).
+                if !matches!(slot(handle), Slot::Flat) {
+                    return;
+                }
                 let decoded: Result<Vec<Value>, _> =
                     values.into_iter().map(decode_thread_stream).collect();
                 match decoded {
@@ -2233,19 +2580,20 @@ fn apply_rpc_event(handle: &TransportHandle, state: Store<UiModel>, event: RpcEv
                 {
                     Ok(value) => value,
                     Err(error) => {
-                        fail(state, format!("Invalid server configuration: {error}"));
+                        links::fail_on(handle, state, format!("Invalid server configuration: {error}"));
                         return;
                     }
                 };
-                let expected = state.peek().destination.clone();
+                let expected = environment_of(handle, state);
                 if expected.as_ref().is_none_or(|expected| {
                     value["environment"]["environmentId"].as_str() != Some(expected.as_str())
                 }) {
-                    state.status().set(ConnectionStatus::Blocked(
+                    set_status(handle, state, ConnectionStatus::Blocked(
                         "Server identity changed during connection".into(),
                     ));
-                    fail(state, "Server identity changed during connection");
-                    if let Some(mut sender) = handle.borrow_mut().sender.take() {
+                    links::fail_on(handle, state, "Server identity changed during connection");
+                    let sender = handle.borrow_mut().sender.take();
+                    if let Some(mut sender) = sender {
                         sender.close();
                     }
                     return;
@@ -2253,28 +2601,27 @@ fn apply_rpc_event(handle: &TransportHandle, state: Store<UiModel>, event: RpcEv
                 // A unary refresh can finish after a newer streamed registry
                 // update. Once live projection owns this socket, only that
                 // ordered subscription may replace the config.
-                if live_config_active(handle, state) {
+                if link_live_config(handle) {
                     return;
                 }
                 let typed =
                     serde_json::from_value(value.clone()).expect("configuration validated above");
-                state.typed_config().set(Some(typed));
-                state.config().set(value);
+                set_config(handle, state, typed, value);
             } else if method == "orchestration.launchThread" {
                 match serde_json::from_value::<t3_contracts::ThreadLaunchResult>(value) {
                     Ok(receipt) => {
                         finish_pending_launch(handle, state, &id, Some(receipt.thread_id.as_str()))
                     }
                     Err(error) => {
-                        state.pending_launches().write().remove(&id);
-                        fail(state, format!("Invalid thread launch receipt: {error}"));
+                        take_pending_launch(handle, state, &id);
+                        links::fail_on(handle, state, format!("Invalid thread launch receipt: {error}"));
                     }
                 }
             }
             // A reply to a request that shows its own answer is not a message's receipt, and
             // clearing the map for it would repaint the composer for every status refresh.
             if !reported {
-                finish_pending_message(state, &id, true);
+                finish_pending_message_on(handle, state, &id, true);
             }
         }
         RpcEvent::Failed { id, method, cause } => {
@@ -2329,15 +2676,13 @@ fn apply_rpc_event(handle: &TransportHandle, state: Store<UiModel>, event: RpcEv
                     rpc_error_message(&cause)
                 }));
             }
-            finish_pending_message(state, &id, false);
-            if state.pending_launches().peek().contains_key(&id) {
-                state.pending_launches().write().remove(&id);
-            }
+            finish_pending_message_on(handle, state, &id, false);
+            take_pending_launch(handle, state, &id);
             if !missing_attachment && !diff_request && !vcs_request && !reported {
-                fail(state, rpc_error_message(&cause));
+                links::fail_on(handle, state, rpc_error_message(&cause));
             }
         }
-        RpcEvent::Defect(error) => fail(state, rpc_error_message(&error)),
+        RpcEvent::Defect(error) => links::fail_on(handle, state, rpc_error_message(&error)),
         _ => {}
     }
 }
@@ -2348,12 +2693,13 @@ fn finish_pending_launch(
     id: &str,
     thread_id: Option<&str>,
 ) {
-    let pending = state.pending_launches().write().remove(id);
+    let pending = take_pending_launch(handle, state, id);
     let Some(pending) = pending else {
         return;
     };
     let Some(thread_id) = thread_id else {
-        fail(
+        links::fail_on(
+            handle,
             state,
             "The server returned an invalid thread launch receipt.",
         );
@@ -2394,6 +2740,42 @@ fn finish_pending_launch(
     }
 }
 
+/// Applies a shell chunk to the link's own shell: the open environment's, or a parked one's, which the window does not draw.
+fn apply_shell(link: &TransportHandle, state: Store<UiModel>, items: Vec<ShellStreamItem>) {
+    match slot(link) {
+        Slot::Flat => {
+            let mut shell_store = state.shell();
+            let mut shell = shell_store.write();
+            for item in items {
+                shell.apply(item);
+            }
+        }
+        Slot::Parked(environment) => {
+            if let Some(slice) = state.parked().write().get_mut(&environment) {
+                for item in items {
+                    slice.shell.apply(item);
+                }
+            }
+        }
+        Slot::Nowhere => {}
+    }
+}
+
+/// The launch a reply is the receipt of, taken from the slice its link keeps it in.
+fn take_pending_launch(link: &TransportHandle, state: Store<UiModel>, id: &str) -> Option<PendingLaunch> {
+    match slot(link) {
+        Slot::Flat => {
+            if state.pending_launches().peek().contains_key(id) {
+                state.pending_launches().write().remove(id)
+            } else {
+                None
+            }
+        }
+        Slot::Parked(environment) => state.parked().write().get_mut(&environment).and_then(|slice| slice.pending_launches.remove(id)),
+        Slot::Nowhere => None,
+    }
+}
+
 /// Decode the complete available contract before acquiring a mutable state
 /// guard. Unknown future events advance the cursor without applying payloads.
 fn decode_thread_stream(value: Value) -> Result<Value, String> {
@@ -2418,13 +2800,38 @@ fn decode_thread_stream(value: Value) -> Result<Value, String> {
     }
 }
 
+/// A reply on a link that is the window's, or on one that is parked.
+fn finish_pending_message_on(link: &TransportHandle, state: Store<UiModel>, id: &str, success: bool) {
+    let parked = match slot(link) {
+        Slot::Parked(environment) => Some(environment),
+        Slot::Flat => None,
+        Slot::Nowhere => return,
+    };
+    finish_pending_message_in(state, parked.as_ref(), id, success);
+}
+
 fn finish_pending_message(state: Store<UiModel>, id: &str, success: bool) {
+    finish_pending_message_in(state, None, id, success);
+}
+
+/// The message a reply is the receipt of, taken from the slice its link keeps it in (`parked` names a parked environment).
+fn finish_pending_message_in(state: Store<UiModel>, parked: Option<&EnvironmentId>, id: &str, success: bool) {
     // Every reply passes here, and a write to the map repaints the composer even when the reply
     // is not a message's (a refresh, a git action), so only a pending message is written.
-    if !state.pending_messages().peek().contains_key(id) {
-        return;
-    }
-    let pending = state.pending_messages().write().remove(id);
+    let pending = match parked {
+        None => {
+            if !state.pending_messages().peek().contains_key(id) {
+                return;
+            }
+            state.pending_messages().write().remove(id)
+        }
+        Some(environment) => {
+            if !state.peek().parked.get(environment).is_some_and(|slice| slice.pending_messages.contains_key(id)) {
+                return;
+            }
+            state.parked().write().get_mut(environment).and_then(|slice| slice.pending_messages.remove(id))
+        }
+    };
     let Some(pending) = pending.filter(|_| success) else {
         return;
     };
@@ -3011,6 +3418,10 @@ pub(crate) mod fixture_server;
 pub(crate) mod transport_tests;
 
 #[cfg(all(test, unix))]
+#[path = "fake_issuer.rs"]
+mod fake_issuer;
+
+#[cfg(all(test, unix))]
 #[path = "provider_manage_tests.rs"]
 mod provider_manage_tests;
 
@@ -3228,3 +3639,11 @@ mod server_update_tests;
 #[cfg(all(test, unix))]
 #[path = "acp_registry_tests.rs"]
 mod acp_registry_tests;
+
+#[cfg(all(test, unix))]
+#[path = "connection_store_tests.rs"]
+mod connection_store_tests;
+
+#[cfg(all(test, unix))]
+#[path = "environments_tests.rs"]
+mod environments_tests;

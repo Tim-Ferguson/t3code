@@ -1,13 +1,11 @@
-use crate::{connection::EnvironmentEndpoint, shell::ShellState, thread::ThreadState};
+use crate::connection::EnvironmentEndpoint;
 use std::collections::BTreeMap;
 use t3_contracts::{AuthEnvironmentScope, EnvironmentId, SessionGrantInput, session_grants_scope};
 
+/// What is kept of an environment apart from its connection (the shell and the open thread live with the connection: see
+/// `t3-ui`'s `links`): the unsent text of each of its threads.
 #[derive(Debug, Clone, Default)]
 pub struct EnvironmentCache {
-    pub shell: ShellState,
-    pub selected_project: Option<String>,
-    pub active_thread: Option<String>,
-    pub thread: ThreadState,
     pub drafts: BTreeMap<String, String>,
 }
 
@@ -77,6 +75,12 @@ impl EnvironmentCatalog {
         protocol: u64,
     ) -> Result<(), EnvironmentError> {
         self.validate_identity(endpoint, &id, protocol)?;
+        self.remember(endpoint, id, label)
+    }
+
+    /// Records that this address is this environment (a saved connection read back at start, before any server has been asked):
+    /// the address stays pinned to the identity it was paired with, as `register` pins it after a descriptor.
+    pub fn remember(&mut self, endpoint: &EnvironmentEndpoint, id: EnvironmentId, label: String) -> Result<(), EnvironmentError> {
         let address = endpoint.http("").to_string();
         if self
             .endpoint_identities

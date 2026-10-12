@@ -96,6 +96,10 @@ async fn a_hub_is_added_with_its_key_pools_its_accounts_and_is_removed_behind_a_
     let fixture = Fixture::start_with_usage_sources().await;
     let (mut dom, _props, state) = open(&fixture, &SCOPES).await;
     assert!(rendered_text(&dom).contains("No hubs configured."));
+    // Codex reports its own account's limits (`withUsageLimitsCommands`: any provider of the driver with `usageLimits`), so the
+    // server offers `/usage-limits` on it with no hub at all.
+    let offers_command = |state: Store<UiModel>| state.typed_config().peek().as_ref().is_some_and(|config| config.providers.0.iter().any(|provider| provider.driver.as_str() == "codex" && provider.slash_commands.iter().any(|command| command.name.as_str() == "usage-limits")));
+    until(&mut dom, "the command from the provider's own limits", |_| offers_command(state)).await;
 
     // The dialog asks for the address and the key before it lets the hub be added; Escape and Cancel leave nothing.
     click_control(&mut dom, "Add hub");
@@ -131,11 +135,7 @@ async fn a_hub_is_added_with_its_key_pools_its_accounts_and_is_removed_behind_a_
     until(&mut dom, "the hub to be read", |_| !hub.keys.lock().unwrap().is_empty()).await;
     assert!(hub.keys.lock().unwrap().iter().all(|key| key == KEY));
 
-    // Its account reaches the Limits view, and the server offers `/usage-limits` on the provider it reports on.
-    until(&mut dom, "the command in the provider catalog", |_| {
-        state.typed_config().peek().as_ref().is_some_and(|config| config.providers.0.iter().any(|provider| provider.driver.as_str() == "codex" && provider.slash_commands.iter().any(|command| command.name.as_str() == "usage-limits")))
-    })
-    .await;
+    // Its account reaches the Limits view.
     state.view().set(View::Usage);
     dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
     wait_for_rendered_text(&mut dom, "Session88%").await;
@@ -155,10 +155,8 @@ async fn a_hub_is_added_with_its_key_pools_its_accounts_and_is_removed_behind_a_
     click_control(&mut dom, "Remove hub");
     wait_for_rendered_text(&mut dom, "No hubs configured.").await;
     assert!(hubs(state).is_empty());
-    until(&mut dom, "the command to leave the catalog", |_| {
-        state.typed_config().peek().as_ref().is_some_and(|config| config.providers.0.iter().all(|provider| provider.slash_commands.iter().all(|command| command.name.as_str() != "usage-limits")))
-    })
-    .await;
+    // The command stays: it was never the hub's, Codex's own account still has limits to show.
+    assert!(offers_command(state));
     state.view().set(View::Usage);
     dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
     until(&mut dom, "the account to leave the Limits view", |dom| !rendered_text(dom).contains("Session88%")).await;
