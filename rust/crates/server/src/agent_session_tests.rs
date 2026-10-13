@@ -932,11 +932,12 @@ fn an_existing_import_is_left_alone_unless_it_belongs_elsewhere_or_has_activity_
         updated_at: "2026-08-24T10:05:00.000Z".into(),
         messages: vec![Message { role: "user", text: "Hello".into(), created_at: "2026-08-24T10:00:00.000Z".into() }],
     };
-    write_thread(&world.store, "selected", "codex", &thread("first")).unwrap();
+    let put = |project: &str, thread: &Imported| write_thread(&world.store, project, &normalize(&workspace), "codex", thread, &fake_source("codex", &thread.session_id));
+    put("selected", &thread("first")).unwrap();
     // Again for the same project: untouched. For another project: refused.
-    write_thread(&world.store, "selected", "codex", &thread("first")).unwrap();
+    put("selected", &thread("first")).unwrap();
     assert_eq!(world.items("import:codex:first").len(), 1);
-    let elsewhere = write_thread(&world.store, "other", "codex", &thread("first")).unwrap_err();
+    let elsewhere = put("other", &thread("first")).unwrap_err();
     assert!(elsewhere.contains("belongs to project 'selected', not 'other'"), "{elsewhere}");
     // A thread of the same id that a person made is not an import.
     let command = |kind: &str, created_by: &str, source: &str| {
@@ -944,11 +945,14 @@ fn an_existing_import_is_left_alone_unless_it_belongs_elsewhere_or_has_activity_
             "runtimeMode":"full-access","interactionMode":"default","branch":null,"worktreePath":null,"createdBy":created_by,"creationSource":source})
     };
     crate::thread::ThreadService::new(world.store.clone()).dispatch(&command("mine", "user", "web"), Utc::now()).unwrap();
-    let modified = write_thread(&world.store, "selected", "codex", &thread("mine")).unwrap_err();
+    let modified = put("selected", &thread("mine")).unwrap_err();
     assert!(modified.contains("already contains non-imported activity"), "{modified}");
     // One an earlier build of this server imported, made by the server and never run, still counts as the import.
     crate::thread::ThreadService::new(world.store.clone()).dispatch(&command("earlier", "system", "server"), Utc::now()).unwrap();
-    write_thread(&world.store, "selected", "codex", &thread("earlier")).unwrap();
+    put("selected", &thread("earlier")).unwrap();
+    // Only an import that succeeded is recorded: not the one refused as another project's, nor the one of a person's thread.
+    let recorded = |session: &str| count(&world.store, &format!("SELECT COUNT(*) FROM rust_imported_transcripts WHERE provider_session_id='{session}'"));
+    assert_eq!([recorded("first"), recorded("mine"), recorded("earlier")], [1, 0, 1]);
 }
 
 #[test]
@@ -963,6 +967,285 @@ fn a_repeated_import_of_a_project_with_both_agents_counts_each_session_once() {
     assert_eq!(world.import("selected"), (2, 0));
     assert_eq!(world.import("selected"), (2, 0));
     assert_eq!(world.items(&format!("import:claudeAgent:{session}")).len(), 1);
+}
+
+// --- recorded transcripts --------------------------------------------------------------------
+//
+// The original keeps the identity of each transcript it imported in the thread's runtime row (`importedTranscripts`) and its scanner
+// passes over a file whose identity is unchanged (`AgentSessionScanner.prepareRecentThreads`; its test "checks file identity and
+// provider before skipping completed history", and `AgentSessionImporter.test.ts`, which holds that an import records its source).
+// Its tests give the scanner a list of completed sources and read the outcome tags; these import through the store and read the
+// counts and the table, and tell a file that was passed over from one that was read by overwriting it in place with garbage that keeps
+// its size, modification time and inode: read, it would be skipped.
+
+fn fake_source(instance: &str, session: &str) -> ImportSource {
+    ImportSource { provider: "codex", instance: instance.into(), session_id: session.into(), path: format!("/fake/{session}.jsonl"), identity: identity_from_columns(1, Some(1), None, 1, Some(1)) }
+}
+fn count(store: &Store, sql: &str) -> i64 {
+    store.read(|connection| Ok(connection.query_row(sql, [], |row| row.get(0))?)).unwrap()
+}
+fn recorded_rows(world: &World) -> i64 {
+    count(&world.store, "SELECT COUNT(*) FROM rust_imported_transcripts")
+}
+fn thread_events(world: &World) -> i64 {
+    count(&world.store, "SELECT COUNT(*) FROM rust_application_events WHERE aggregate_id LIKE 'import:%'")
+}
+/// A rollout of one session with one prompt, modified `age_ms` ago.
+fn session_file(world: &World, workspace: &Path, session: &str, age_ms: i64) -> PathBuf {
+    let path = rollout(world, &world.codex(), "2026/08/24", &format!("rollout-{session}.jsonl"));
+    write(&path, codex_transcript(session, workspace, &[user_event(&format!("Prompt of {session}"))]), now_ms() - age_ms);
+    path
+}
+/// The file with everything after its first line replaced, and its size, modification time and inode kept: it is still found
+/// in the project (the first line names the directory), and when read it holds no session.
+fn spoil(path: &Path) {
+    use std::io::{Seek, SeekFrom, Write};
+    let metadata = std::fs::metadata(path).unwrap();
+    let mtime = mtime_ms(&metadata).unwrap();
+    let first_line = std::fs::read(path).unwrap().iter().position(|byte| *byte == b'\n').unwrap() + 1;
+    let mut file = std::fs::OpenOptions::new().write(true).open(path).unwrap();
+    file.seek(SeekFrom::Start(first_line as u64)).unwrap();
+    file.write_all(&vec![b'x'; metadata.len() as usize - first_line]).unwrap();
+    set_mtime(path, mtime);
+}
+
+/// Importer test "imports messages once": an import records the file it read, as it was read, once however many times it runs.
+#[test]
+fn an_import_records_the_identity_of_the_file_it_read() {
+    let world = World::new();
+    let workspace = world.workspace("workspace");
+    world.project("selected", &workspace);
+    let path = session_file(&world, &workspace, "recorded", 1_000);
+    assert_eq!(world.import("selected"), (1, 0));
+    assert_eq!(world.import("selected"), (1, 0));
+    assert_eq!(recorded_rows(&world), 1);
+    let metadata = std::fs::metadata(&path).unwrap();
+    let identity = identity_of(&metadata);
+    let (device, inode) = device_and_inode(&identity);
+    let row = world.store.read(|connection| Ok(connection.query_row(
+        "SELECT provider_instance_id,provider_session_id,workspace_root,provider,size,mtime_ms,birthtime_ms,device,inode,file_path FROM rust_imported_transcripts", [],
+        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, String>(3)?, row.get::<_, i64>(4)?, row.get::<_, Option<i64>>(5)?, row.get::<_, Option<i64>>(6)?, row.get::<_, i64>(7)?, row.get::<_, Option<i64>>(8)?, row.get::<_, String>(9)?)))?)).unwrap();
+    assert_eq!(row, ("codex".to_owned(), "recorded".to_owned(), normalize(&workspace), "codex".to_owned(), metadata.len() as i64, mtime_ms(&metadata), time_ms(metadata.created()), device, inode, path_text(&path)));
+    // Where the platform keeps a creation time, the identity has it.
+    assert_eq!(row.6.is_some(), metadata.created().is_ok());
+}
+
+/// A project of more sessions than one call reads is imported over repeated calls: each passes over what the last one imported
+/// without spending its budget, counts it as imported, and reads the next 100.
+#[test]
+fn imports_a_project_of_more_than_a_hundred_sessions_over_repeated_calls() {
+    let world = World::new();
+    let workspace = world.workspace("workspace");
+    world.project("selected", &workspace);
+    let total: i64 = 250;
+    for index in 0..total {
+        session_file(&world, &workspace, &format!("session-{index:03}"), 1_000 + index * 10);
+    }
+    let imported = |count: i64| (0..total).filter(|index| world.thread(&format!("import:codex:session-{index:03}")).is_some()).count() as i64 == count;
+    assert_eq!(world.import("selected"), (100, 150));
+    assert!(imported(100) && world.thread("import:codex:session-099").is_some() && world.thread("import:codex:session-100").is_none(), "the newest 100");
+    assert_eq!(world.import("selected"), (200, 50));
+    assert!(imported(200));
+    assert_eq!(world.import("selected"), (250, 0));
+    assert!(imported(250));
+    assert_eq!(world.import("selected"), (250, 0));
+    assert_eq!(recorded_rows(&world), total);
+    assert_eq!(count(&world.store, "SELECT COUNT(*) FROM rust_projections WHERE aggregate_id LIKE 'import:%'"), total, "one thread each");
+}
+
+/// The wizard's counts: a file passed over counts as imported, and so does one whose thread exists but whose file changed.
+/// The thread is not written again.
+#[test]
+fn a_file_passed_over_counts_as_imported_and_a_changed_one_is_read_again_without_rewriting_its_thread() {
+    let world = World::new();
+    let workspace = world.workspace("workspace");
+    world.project("selected", &workspace);
+    let path = session_file(&world, &workspace, "growing", 5_000);
+    assert_eq!(world.import("selected"), (1, 0));
+    let events = thread_events(&world);
+    spoil(&path);
+    assert_eq!(world.import("selected"), (1, 0), "passed over, not read");
+    // The session goes on: the file grows, so it is read, finds its thread, and records the file as it is now.
+    write(&path, codex_transcript("growing", &workspace, &[user_event("Prompt of growing"), user_event("A later prompt")]), now_ms() - 4_000);
+    assert_eq!(world.import("selected"), (1, 0));
+    assert_eq!((world.texts("import:codex:growing"), thread_events(&world)), (vec!["Prompt of growing".to_owned()], events), "the thread is as it was imported");
+    assert_eq!(recorded_rows(&world), 1);
+    spoil(&path);
+    assert_eq!(world.import("selected"), (1, 0), "the new identity is the one recorded");
+}
+
+/// Importer-side counterpart of "checks file identity and provider before skipping completed history": a record is trusted only
+/// while every part of the file's identity, and the provider, match; one that does not is read, and a file that cannot be read is skipped.
+#[test]
+fn a_recorded_file_is_passed_over_only_while_its_whole_identity_and_provider_match() {
+    let changes = [
+        ("nothing", None),
+        ("size", Some("size = size + 1")),
+        ("modification time", Some("mtime_ms = COALESCE(mtime_ms, 0) + 1")),
+        ("creation time", Some("birthtime_ms = COALESCE(birthtime_ms, 0) + 1")),
+        ("device", Some("device = device + 1")),
+        ("inode", Some("inode = COALESCE(inode, 0) + 1")),
+        ("provider", Some("provider = 'claudeAgent'")),
+        ("project", Some("workspace_root = '/elsewhere'")),
+    ];
+    for (name, change) in changes {
+        let world = World::new();
+        let workspace = world.workspace("workspace");
+        world.project("selected", &workspace);
+        let path = session_file(&world, &workspace, "identity", 1_000);
+        assert_eq!(world.import("selected"), (1, 0));
+        if let Some(change) = change {
+            world.store.transaction(|transaction| Ok(transaction.execute(&format!("UPDATE rust_imported_transcripts SET {change}"), [])?)).unwrap();
+        }
+        spoil(&path);
+        assert_eq!(world.import("selected"), if change.is_none() { (1, 0) } else { (0, 1) }, "{name}");
+    }
+}
+
+/// The scanner test's replaced file: the path holds another session of the same size and modification time, in another file.
+#[test]
+fn a_replaced_file_is_read_even_when_its_size_and_modification_time_are_the_same() {
+    let world = World::new();
+    let workspace = world.workspace("workspace");
+    world.project("selected", &workspace);
+    let path = rollout(&world, &world.codex(), "2026/08/24", "rollout-replaced.jsonl");
+    let contents = |session: &str| codex_transcript(session, &workspace, &[user_event("Imported prompt")]);
+    let mtime = now_ms() - 1_000;
+    write(&path, contents("original-session"), mtime);
+    assert_eq!(world.import("selected"), (1, 0));
+    // Keep the old inode allocated while the path is replaced with an equal-size file.
+    let _old = std::fs::File::open(&path).unwrap();
+    std::fs::remove_file(&path).unwrap();
+    write(&path, contents("replaced-session"), mtime);
+    assert_eq!(world.import("selected"), (1, 0));
+    assert_eq!((world.thread("import:codex:original-session").is_some(), world.thread("import:codex:replaced-session").is_some()), (true, true));
+    assert_eq!(recorded_rows(&world), 2, "the old session keeps its record, the new one has its own");
+}
+
+/// "suppresses duplicate session copies without reporting a skipped import", and what the original adds in the importer: the copy
+/// is recorded under the thread, so the next call passes over both, and counts the session once.
+#[test]
+fn a_copy_of_an_imported_session_is_recorded_and_counts_for_nothing() {
+    let world = World::new();
+    let workspace = world.workspace("workspace");
+    world.project("selected", &workspace);
+    let contents = codex_transcript("copied-session", &workspace, &[user_event("Import this session once")]);
+    let now = now_ms();
+    let (first, copy) = (rollout(&world, &world.codex(), "2026/08/24", "rollout-copy-a.jsonl"), rollout(&world, &world.codex(), "2026/08/24", "rollout-copy-b.jsonl"));
+    write(&first, &contents, now - 1_000);
+    write(&copy, &contents, now - 2_000);
+    assert_eq!(world.import("selected"), (1, 0));
+    assert_eq!(recorded_rows(&world), 2);
+    spoil(&first);
+    spoil(&copy);
+    assert_eq!(world.import("selected"), (1, 0));
+}
+
+/// A copy of a session that was not imported is not recorded: its thread is not there to stand for it.
+#[test]
+fn a_copy_of_a_session_that_could_not_be_imported_is_not_recorded() {
+    let world = World::new();
+    let workspace = world.workspace("workspace");
+    world.project("selected", &workspace);
+    let contents = |session: &str| lines(&[json!({"type":"user","cwd":workspace,"sessionId":session,"message":{"content":"Hello"}})]);
+    // Not a UUID, so a Claude session cannot be resumed.
+    write(&world.claude().join("projects/-x/a.jsonl"), contents("not-a-uuid"), now_ms() - 1_000);
+    write(&world.claude().join("projects/-x/b.jsonl"), contents("not-a-uuid"), now_ms() - 2_000);
+    assert_eq!(world.import("selected"), (0, 1));
+    assert_eq!(recorded_rows(&world), 0);
+}
+
+/// A transcript that was read and skipped is recorded nowhere, so it is read, and charged, again on every call (the original does
+/// the same): 100 of them newer than a good one keep it out.
+#[test]
+fn a_transcript_that_was_read_and_skipped_is_not_recorded_and_spends_its_budget_every_call() {
+    let world = World::new();
+    let workspace = world.workspace("workspace");
+    world.project("selected", &workspace);
+    for index in 0..100 {
+        write(&rollout(&world, &world.codex(), "2026/08/24", &format!("rollout-empty-{index:03}.jsonl")), lines(&[session_meta(&format!("empty-{index:03}"), &workspace)]), now_ms() - 1_000 - index);
+    }
+    session_file(&world, &workspace, "good", 10_000);
+    for _ in 0..2 {
+        assert_eq!(world.import("selected"), (0, 101));
+    }
+    assert_eq!(recorded_rows(&world), 0);
+    assert!(world.thread("import:codex:good").is_none());
+}
+
+/// Threads an earlier build imported have no record. They are not errors and not imported twice: the first call that meets
+/// one reads it, at the cost of any other transcript, finds the thread and records the file; after that it costs nothing.
+#[test]
+fn threads_without_a_record_cost_one_read_each_and_then_nothing() {
+    let world = World::new();
+    let workspace = world.workspace("workspace");
+    world.project("selected", &workspace);
+    let total: i64 = 120;
+    for index in 0..total {
+        session_file(&world, &workspace, &format!("session-{index:03}"), 1_000 + index * 10);
+    }
+    assert_eq!(world.import("selected"), (100, 20));
+    // The store an earlier build left: the threads, and no record of the files.
+    world.store.transaction(|transaction| Ok(transaction.execute("DELETE FROM rust_imported_transcripts", [])?)).unwrap();
+    let events = thread_events(&world);
+    assert_eq!(world.import("selected"), (100, 20), "the same 100 are read again, and the budget is theirs");
+    assert_eq!((thread_events(&world), recorded_rows(&world)), (events, 100), "no thread is written twice");
+    assert_eq!(world.import("selected"), (120, 0), "now they are passed over and the rest is read");
+    assert_eq!(recorded_rows(&world), total);
+    assert_eq!(count(&world.store, "SELECT COUNT(*) FROM rust_projections WHERE aggregate_id LIKE 'import:%'"), total);
+}
+
+/// The record is written with the thread's events or not at all (the original writes it after, and a crash between them costs
+/// the next call a read; here a crash costs nothing).
+#[test]
+fn a_thread_and_its_record_are_written_together_or_not_at_all() {
+    let world = World::new();
+    let workspace = world.workspace("workspace");
+    world.project("selected", &workspace);
+    let thread = Imported {
+        source: Source::Codex,
+        session_id: "atomic".into(),
+        title: "Imported".into(),
+        model: None,
+        created_at: "2026-08-24T10:00:00.000Z".into(),
+        updated_at: "2026-08-24T10:05:00.000Z".into(),
+        messages: vec![Message { role: "user", text: "Hello".into(), created_at: "2026-08-24T10:00:00.000Z".into() }],
+    };
+    let thread_id = thread_id_of("codex", "atomic");
+    // An event of the same id already stored makes the commit fail after the record has been written.
+    world.store.transaction(|transaction| Ok(transaction.execute(
+        "INSERT INTO rust_application_events(event_id,aggregate_kind,aggregate_id,command_id,event_type,occurred_at,event_json) VALUES(?1,'thread','blocker',NULL,'x','2026-08-24T10:00:00.000Z','{}')",
+        [format!("{IMPORT_EVENT_PREFIX}:thread:{thread_id}:created")],
+    )?)).unwrap();
+    let root = normalize(&workspace);
+    assert!(write_thread(&world.store, "selected", &root, "codex", &thread, &fake_source("codex", "atomic")).is_err());
+    assert_eq!((recorded_rows(&world), world.thread(&thread_id).is_none()), (0, true));
+    world.store.transaction(|transaction| Ok(transaction.execute("DELETE FROM rust_application_events WHERE aggregate_id='blocker'", [])?)).unwrap();
+    write_thread(&world.store, "selected", &root, "codex", &thread, &fake_source("codex", "atomic")).unwrap();
+    assert_eq!((recorded_rows(&world), world.thread(&thread_id).is_some()), (1, true));
+}
+
+/// Records are in the store's file: they outlast it, and a store from before they existed opens with the table and no records.
+#[test]
+fn records_outlast_the_store_and_a_store_from_before_them_gains_the_table() {
+    let mut world = World::new();
+    let path = world.path("state.sqlite");
+    world.store = Store::open(&path).unwrap();
+    let workspace = world.workspace("workspace");
+    world.project("selected", &workspace);
+    let session = session_file(&world, &workspace, "durable", 1_000);
+    assert_eq!(world.import("selected"), (1, 0));
+    world.store = Store::memory().unwrap();
+    world.store = Store::open(&path).unwrap();
+    assert_eq!(recorded_rows(&world), 1);
+    spoil(&session);
+    assert_eq!(world.import("selected"), (1, 0), "passed over after a reopen");
+    world.store = Store::memory().unwrap();
+    rusqlite::Connection::open(&path).unwrap().execute_batch("DROP TABLE rust_imported_transcripts").unwrap();
+    world.store = Store::open(&path).unwrap();
+    assert_eq!(recorded_rows(&world), 0);
+    // The thread is there and the file is not readable any more: it is skipped, as a file nothing recorded is.
+    assert_eq!(world.import("selected"), (0, 1));
 }
 
 // --- parseAgentSessionTranscript -------------------------------------------------------------

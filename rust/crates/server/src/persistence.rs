@@ -280,6 +280,7 @@ impl Store {
         connection.execute_batch(stored::SCHEMA)?;
         stored::migrate(&mut connection)?;
         crate::shared_rows::ensure(&connection)?;
+        connection.execute_batch(crate::agent_sessions::IMPORTED_TRANSCRIPTS_SCHEMA)?;
         let cache = cache::ProjectionCache::watching(&connection);
         let (committed, _) = tokio::sync::broadcast::channel(256);
         Ok(Self {

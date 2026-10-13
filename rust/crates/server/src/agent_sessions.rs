@@ -10,10 +10,16 @@
 //! with only the fields the import reads kept (`agent_session_json.rs`), because a Codex rollout can
 //! be several GiB.
 //!
-//! Divergence: a session is imported once, by the existence of its thread, rather than by the
-//! per-file identity the original keeps in its runtime rows (`importedTranscripts`). A retry
-//! therefore re-reads the transcripts it already imported, where the original skips them without
-//! spending its budget.
+//! An import reads at most 100 transcripts, so a project with more recent sessions is imported over
+//! repeated calls, as in the original. Each transcript an import has read is recorded with the identity of
+//! the file as it was read (`rust_imported_transcripts`, the original's `importedTranscripts` in the
+//! thread's runtime row): a later call that finds the same file unchanged counts it as imported without
+//! reading it or spending any of its budget, so the budget goes to the next transcripts. A file whose
+//! identity changed is read again, and a transcript that was read but skipped is recorded nowhere, so it
+//! spends its share again on every call. The record of a new thread is written in the transaction that
+//! writes its events (the original writes it afterwards, in a transaction of its own), so there is no
+//! thread without its record, only a record-less thread from a build that kept none, which the next
+//! call reads once and records. A thread is never rewritten once it exists.
 use crate::{
     agent_session_json::{LimitError, ReadError, RecordReader, Seg, TRANSCRIPT_RECORD},
     persistence::Store,
@@ -249,8 +255,11 @@ fn directory_identity(path: &Path) -> String {
     format!("path:{}", normalize(&std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())))
 }
 
+fn time_ms(time: std::io::Result<std::time::SystemTime>) -> Option<i64> {
+    time.ok().and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok()).map(|elapsed| elapsed.as_millis() as i64)
+}
 fn mtime_ms(metadata: &std::fs::Metadata) -> Option<i64> {
-    metadata.modified().ok().and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok()).map(|elapsed| elapsed.as_millis() as i64)
+    time_ms(metadata.modified())
 }
 
 /// The discovery operations a home may spend: each directory read and each stat takes one, and once they
@@ -1028,9 +1037,13 @@ fn parse_records(source: Source, records: &[Value], fallback_session: &str, last
     })
 }
 
+/// `transcriptIdentity` without the path, which is the key a transcript is looked up by.
+#[derive(Clone)]
 struct Identity {
     size: u64,
     mtime_ms: Option<i64>,
+    /// `None` where the platform or file system keeps no creation time.
+    birthtime_ms: Option<i64>,
     #[cfg(unix)]
     device: u64,
     #[cfg(unix)]
@@ -1040,17 +1053,18 @@ fn identity_of(metadata: &std::fs::Metadata) -> Identity {
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
-        Identity { size: metadata.len(), mtime_ms: mtime_ms(metadata), device: metadata.dev(), ino: metadata.ino() }
+        Identity { size: metadata.len(), mtime_ms: mtime_ms(metadata), birthtime_ms: time_ms(metadata.created()), device: metadata.dev(), ino: metadata.ino() }
     }
     #[cfg(not(unix))]
-    Identity { size: metadata.len(), mtime_ms: mtime_ms(metadata) }
+    Identity { size: metadata.len(), mtime_ms: mtime_ms(metadata), birthtime_ms: time_ms(metadata.created()) }
 }
+/// `sameTranscriptIdentity`.
 fn same_identity(left: &Identity, right: &Identity) -> bool {
     #[cfg(unix)]
     let same_file = left.device == right.device && left.ino == right.ino;
     #[cfg(not(unix))]
     let same_file = true;
-    left.size == right.size && left.mtime_ms == right.mtime_ms && same_file
+    left.size == right.size && left.mtime_ms == right.mtime_ms && left.birthtime_ms == right.birthtime_ms && same_file
 }
 
 /// The selected, decoded records of a transcript stream and how many records it held, or `None` when it held
@@ -1106,6 +1120,86 @@ fn read_transcript(path: &Path, expected: &Identity, record_limit: usize, source
     same_identity(expected, &identity_of(&reader.get_ref().get_ref().metadata().ok()?)).then_some(read)
 }
 
+/// The transcripts an import has read, saved so a later call can pass over them (`AgentSessionImportSource`, which the original keeps
+/// in the `importedTranscripts` of the runtime row of the thread: `ProviderSessionRuntime.recordImportedTranscript`). A row is the
+/// file's identity as it was read and the session it held, keyed as the original keys it: the file within a provider instance, per
+/// thread. `workspace_root` is the project's root as `normalize` spells it, which is how the original finds the rows of a project
+/// (by the `cwd` of the runtime row). Created when the store opens, like the other tables that came after the first build
+/// (`shared_rows`); nothing about it needs a migration, and a store from before it opens with the table empty.
+///
+/// TODO(original AgentSessionScanner.prepareRecentThreads): rows are found by root path, not project id, so a project deleted and
+/// made again at the same path counts its sessions as imported without getting their threads.
+pub(crate) const IMPORTED_TRANSCRIPTS_SCHEMA: &str = "
+CREATE TABLE IF NOT EXISTS rust_imported_transcripts (
+  provider_instance_id TEXT NOT NULL, file_path TEXT NOT NULL, provider_session_id TEXT NOT NULL, workspace_root TEXT NOT NULL,
+  provider TEXT NOT NULL, size INTEGER NOT NULL, mtime_ms INTEGER, birthtime_ms INTEGER, device INTEGER NOT NULL, inode INTEGER,
+  PRIMARY KEY(provider_instance_id, file_path, provider_session_id)) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS rust_imported_transcripts_root ON rust_imported_transcripts(workspace_root);";
+
+/// `AgentSessionImportSource`: the file a session was read from, as it was when read.
+struct ImportSource {
+    provider: &'static str,
+    instance: String,
+    session_id: String,
+    path: String,
+    identity: Identity,
+}
+
+/// What a recorded file held: the provider and session it was imported as, and its identity then.
+struct Completed {
+    provider: String,
+    session_id: String,
+    identity: Identity,
+}
+
+/// The device and inode as the columns hold them: an unsigned id keeps its bits in a signed column.
+fn device_and_inode(identity: &Identity) -> (i64, Option<i64>) {
+    #[cfg(unix)]
+    return (identity.device as i64, Some(identity.ino as i64));
+    #[cfg(not(unix))]
+    return (0, { let _ = identity; None });
+}
+fn identity_from_columns(size: i64, mtime_ms: Option<i64>, birthtime_ms: Option<i64>, device: i64, inode: Option<i64>) -> Identity {
+    #[cfg(not(unix))]
+    let _ = (device, inode);
+    Identity {
+        size: size as u64,
+        mtime_ms,
+        birthtime_ms,
+        #[cfg(unix)]
+        device: device as u64,
+        #[cfg(unix)]
+        ino: inode.unwrap_or(0) as u64,
+    }
+}
+
+/// `recordImportedTranscript`: replaces the record of this file for this session, leaving the others.
+fn record_source(connection: &rusqlite::Connection, root_key: &str, source: &ImportSource) -> rusqlite::Result<()> {
+    let (device, inode) = device_and_inode(&source.identity);
+    connection.execute(
+        "INSERT OR REPLACE INTO rust_imported_transcripts(provider_instance_id,file_path,provider_session_id,workspace_root,provider,size,mtime_ms,birthtime_ms,device,inode) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+        rusqlite::params![source.instance, source.path, source.session_id, root_key, source.provider, source.identity.size as i64, source.identity.mtime_ms, source.identity.birthtime_ms, device, inode],
+    )?;
+    Ok(())
+}
+
+/// The recorded files of the project rooted at `root_key`, by provider instance and path (`completedByFile`).
+fn completed_sources(store: &Store, root_key: &str) -> Result<HashMap<(String, String), Vec<Completed>>, crate::persistence::StoreError> {
+    store.read(|connection| {
+        let mut statement = connection.prepare("SELECT provider_instance_id,file_path,provider_session_id,provider,size,mtime_ms,birthtime_ms,device,inode FROM rust_imported_transcripts WHERE workspace_root=?1")?;
+        let rows = statement.query_map([root_key], |row| {
+            let identity = identity_from_columns(row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?, row.get(8)?);
+            Ok(((row.get::<_, String>(0)?, row.get::<_, String>(1)?), Completed { session_id: row.get(2)?, provider: row.get(3)?, identity }))
+        })?;
+        let mut completed: HashMap<(String, String), Vec<Completed>> = HashMap::new();
+        for row in rows {
+            let (key, entry) = row?;
+            completed.entry(key).or_default().push(entry);
+        }
+        Ok(completed)
+    })
+}
+
 pub struct ImportRequest<'a> {
     pub project_id: &'a str,
     pub expected_workspace_root: Option<&'a str>,
@@ -1143,14 +1237,33 @@ pub fn import(settings: &Value, store: &Store, host: &Host, request: &ImportRequ
     eligible.sort_by(|left, right| right.3.cmp(&left.3).then_with(|| left.2.cmp(&right.2)));
     let (mut imported, mut skipped) = (0u64, 0u64);
     let (mut bytes_remaining, mut transcripts_remaining, mut records_remaining) = (MAX_IMPORT_BYTES, MAX_IMPORT_TRANSCRIPTS, MAX_IMPORT_RECORDS);
-    let mut seen_sessions = HashSet::new();
+    // Files an earlier call recorded, which this one passes over while they are unchanged. The scanner's `importedSessions` is
+    // `seen_sessions`; the importer's `importedThreadIds` is `imported_threads`.
+    let root_key = normalize(Path::new(&root));
+    let completed = completed_sources(store, &root_key).map_err(|error| scan_error("read-projects", error))?;
+    let (mut seen_sessions, mut imported_threads) = (HashSet::new(), HashSet::new());
     for (source, instance, path, mtime_ms) in eligible {
+        let path_text = path.to_string_lossy().into_owned();
+        let recorded = completed.get(&(instance.clone(), path_text.clone()));
+        // A recorded file is looked at even when the budget is gone: passing over it costs nothing.
+        if recorded.is_none() && (transcripts_remaining == 0 || bytes_remaining == 0 || records_remaining == 0) {
+            skipped += 1;
+            continue;
+        }
         let Ok(metadata) = std::fs::metadata(&path) else { skipped += 1; continue };
         if !metadata.is_file() {
             skipped += 1;
             continue;
         }
         let identity = identity_of(&metadata);
+        if let Some(done) = recorded.and_then(|recorded| recorded.iter().find(|done| done.provider == source.driver() && same_identity(&done.identity, &identity))) {
+            // `AlreadyImported`: it counts as imported, once for the session, and spends none of the budget.
+            if seen_sessions.insert(format!("{instance}\0{}", done.session_id)) {
+                imported_threads.insert(thread_id_of(&instance, &done.session_id));
+                imported += 1;
+            }
+            continue;
+        }
         if transcripts_remaining == 0 || records_remaining == 0 || identity.size > MAX_IMPORTED_TRANSCRIPT_BYTES || identity.size > bytes_remaining {
             skipped += 1;
             continue;
@@ -1166,16 +1279,29 @@ pub fn import(settings: &Value, store: &Store, host: &Host, request: &ImportRequ
             expanded.is_absolute() && directory_identity(&normalize_path(&expanded)) == root_identity
         });
         let fallback = path.file_stem().map(|stem| stem.to_string_lossy().into_owned()).unwrap_or_default();
+        // TODO(original AgentSessionScanner.prepareRecentThreads): a transcript that was read and skipped is recorded nowhere, so
+        // it is read again, and spends the same share of the budget again, on every call. More than 100 of them newer than
+        // the rest keep the rest from ever being reached.
         let Some(thread) = belongs.then(|| parse_records(source, &records, &fallback, mtime_ms)).flatten() else { skipped += 1; continue };
+        let thread_id = thread_id_of(&instance, &thread.session_id);
+        let file = ImportSource { provider: source.driver(), instance: instance.clone(), session_id: thread.session_id.clone(), path: path_text, identity };
         if !seen_sessions.insert(format!("{instance}\0{}", thread.session_id)) {
+            // `Duplicate`: neither imported nor skipped. A copy of a session this call imported is recorded too, so it is
+            // passed over next time. The original ignores a failure to record it.
+            if imported_threads.contains(&thread_id) {
+                let _ = store.transaction(|transaction| Ok(record_source(transaction, &root_key, &file)?));
+            }
             continue;
         }
         if thread.source == Source::Claude && !session_id_is_valid(&thread.session_id) {
             skipped += 1;
             continue;
         }
-        match write_thread(store, request.project_id, &instance, &thread) {
-            Ok(()) => imported += 1,
+        match write_thread(store, request.project_id, &root_key, &instance, &thread, &file) {
+            Ok(()) => {
+                imported_threads.insert(thread_id);
+                imported += 1;
+            }
             Err(error) => {
                 tracing::warn!(session = %thread.session_id, %error, "Could not import an agent session");
                 skipped += 1;
@@ -1187,6 +1313,11 @@ pub fn import(settings: &Value, store: &Store, host: &Host, request: &ImportRequ
 
 const IMPORT_EVENT_PREFIX: &str = "agent-session-import:v2";
 
+/// The id of the thread a session is imported as.
+fn thread_id_of(instance: &str, session_id: &str) -> String {
+    format!("import:{instance}:{session_id}")
+}
+
 /// The thread, its messages, and the provider thread bound to the native session, as the original's importer
 /// writes them (`AgentSessionImporter`): a settled thread of imported history, created and last updated when
 /// the transcript was, whose first message resumes the native session. An existing import is left untouched,
@@ -1196,8 +1327,12 @@ const IMPORT_EVENT_PREFIX: &str = "agent-session-import:v2";
 /// This server's adapters resume from the provider thread's native reference alone, and the Claude adapter
 /// knows an imported session by its provider thread being `not_loaded` (as `thread.create` leaves one made
 /// from an imported native thread), so the provider thread is written that way.
-fn write_thread(store: &Store, project_id: &str, instance: &str, thread: &Imported) -> Result<(), String> {
-    let thread_id = format!("import:{instance}:{}", thread.session_id);
+///
+/// `file` is recorded (`record_source`) when the import succeeds: in the transaction that writes a new thread's events, so a
+/// crash leaves either both or neither, and by itself for a thread that already exists and is the import's (one an earlier
+/// build wrote has no record until now). Where the original records after the events, in a transaction of its own.
+fn write_thread(store: &Store, project_id: &str, root_key: &str, instance: &str, thread: &Imported, file: &ImportSource) -> Result<(), String> {
+    let thread_id = thread_id_of(instance, &thread.session_id);
     if let Some(existing) = store.projection("thread", &thread_id).map_err(|error| error.to_string())? {
         if existing["thread"]["projectId"] != project_id {
             return Err(format!("Imported thread '{thread_id}' belongs to project '{}', not '{project_id}'.", existing["thread"]["projectId"].as_str().unwrap_or("")));
@@ -1208,7 +1343,7 @@ fn write_thread(store: &Store, project_id: &str, instance: &str, thread: &Import
         if !imported_only {
             return Err(format!("Imported thread '{thread_id}' already contains non-imported activity."));
         }
-        return Ok(());
+        return store.transaction(|transaction| Ok(record_source(transaction, root_key, file)?)).map_err(|error| error.to_string());
     }
     let driver = thread.source.driver();
     let model = thread.model.clone().unwrap_or_else(|| match thread.source {
@@ -1266,7 +1401,10 @@ fn write_thread(store: &Store, project_id: &str, instance: &str, thread: &Import
         }),
     )?);
     store
-        .dispatch_unreceipted(&command_id, "thread", &thread_id, "agent-session.import", chrono::Utc::now(), |_| Ok(crate::persistence::Decision::Accepted { events, effects: vec![] }), crate::thread::reduce)
+        .dispatch_unreceipted(&command_id, "thread", &thread_id, "agent-session.import", chrono::Utc::now(), |transaction| {
+            record_source(transaction, root_key, file)?;
+            Ok(crate::persistence::Decision::Accepted { events, effects: vec![] })
+        }, crate::thread::reduce)
         .map_err(|error| error.to_string())?;
     Ok(())
 }
