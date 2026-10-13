@@ -1,20 +1,28 @@
-//! `agentSessions.scan` and `agentSessions.import` for Claude Code history (`AgentSessionScanner.ts`,
-//! `AgentSessionImporter.ts`).
+//! `agentSessions.scan` and `agentSessions.import` for Claude Code and Codex history
+//! (`AgentSessionScanner.ts`, `AgentSessionImporter.ts`).
 //!
-//! Scanning finds the directories Claude Code has run in, from `<config dir>/projects/*/*.jsonl`,
-//! and offers each as a project; importing turns a project's recent sessions into T3 Code threads
-//! that resume the native session on their first message. The Claude home is read, never written,
-//! and every read is bounded as in the original: file counts, directory operations, bytes and
-//! records per source and per transcript, and a selected-history budget per imported transcript.
+//! Scanning finds the directories the agents have run in, from `<config dir>/projects/*/*.jsonl` for
+//! Claude Code and `<CODEX_HOME>/sessions/YYYY/MM/DD/rollout-*.jsonl` for Codex, and offers each as a
+//! project; importing turns a project's recent sessions into T3 Code threads that resume the native
+//! session on their first message. The agents' homes are read, never written, and every read is
+//! bounded as in the original: file counts, directory operations, bytes and records per source and
+//! per transcript, and a selected-history budget per imported transcript. A transcript is streamed
+//! with only the fields the import reads kept (`agent_session_json.rs`), because a Codex rollout can
+//! be several GiB.
 //!
-//! Divergences: Codex rollouts are not scanned or imported (they need the Codex session readers),
-//! and a session is imported once, by the existence of its thread, rather than by the per-file
-//! identity the original keeps in its runtime rows.
-use crate::{persistence::Store, transport::ApiState};
+//! Divergence: a session is imported once, by the existence of its thread, rather than by the
+//! per-file identity the original keeps in its runtime rows (`importedTranscripts`). A retry
+//! therefore re-reads the transcripts it already imported, where the original skips them without
+//! spending its budget.
+use crate::{
+    agent_session_json::{LimitError, ReadError, RecordReader, Seg, TRANSCRIPT_RECORD},
+    persistence::Store,
+    transport::ApiState,
+};
 use serde_json::{Value, json};
 use std::{
-    collections::{HashMap, HashSet},
-    io::{BufRead, Read},
+    collections::{HashMap, HashSet, VecDeque},
+    io::Read,
     path::{Path, PathBuf},
 };
 
@@ -37,7 +45,11 @@ const MAX_IMPORT_HISTORY_BYTES: usize = 32 * 1024 * 1024;
 const MAX_IMPORT_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 const MAX_IMPORT_TRANSCRIPTS: usize = 100;
 const MAX_IMPORT_RECORDS: usize = 100_000;
+/// `DEFAULT_MODEL_BY_PROVIDER`: what an imported thread selects when its transcript names no model.
 const DEFAULT_CLAUDE_MODEL: &str = "claude-fable-5-1";
+const DEFAULT_CODEX_MODEL: &str = "gpt-6-astra";
+/// `DEFAULT_RUNTIME_MODE`.
+const DEFAULT_RUNTIME_MODE: &str = "full-access";
 
 fn scan_error(operation: &str, cause: impl std::fmt::Display) -> Value {
     json!({"_tag":"AgentSessionScanError","operation":operation,"cause":cause.to_string()})
@@ -49,12 +61,38 @@ pub struct Host {
     /// This server's T3 home and its worktrees: sessions started inside them are the app's own.
     pub base_dir: PathBuf,
     pub temp_dirs: Vec<PathBuf>,
+    /// The process environment's `CLAUDE_CONFIG_DIR` and `CODEX_HOME` (`HostProcessEnvironment`).
+    pub environment: HashMap<String, String>,
 }
 impl Host {
     pub fn of(state_dir: Option<&Path>) -> Self {
         let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
         let base_dir = state_dir.map(|dir| if dir.file_name().is_some_and(|name| name == "userdata") { dir.parent().unwrap_or(dir).to_path_buf() } else { dir.to_path_buf() }).unwrap_or_default();
-        Self { home, base_dir, temp_dirs: vec![std::env::temp_dir(), PathBuf::from("/tmp"), PathBuf::from("/private/tmp")] }
+        let environment = ["CLAUDE_CONFIG_DIR", "CODEX_HOME"].into_iter().filter_map(|name| Some((name.to_owned(), std::env::var(name).ok()?))).collect();
+        Self { home, base_dir, temp_dirs: vec![std::env::temp_dir(), PathBuf::from("/tmp"), PathBuf::from("/private/tmp")], environment }
+    }
+}
+
+/// `AgentSessionSource`: the agents whose history can be imported.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Source {
+    Claude,
+    Codex,
+}
+impl Source {
+    const ALL: [Source; 2] = [Source::Claude, Source::Codex];
+    /// The provider driver the source's sessions belong to.
+    fn driver(self) -> &'static str {
+        match self {
+            Self::Claude => "claudeAgent",
+            Self::Codex => "codex",
+        }
+    }
+    fn home_variable(self) -> &'static str {
+        match self {
+            Self::Claude => "CLAUDE_CONFIG_DIR",
+            Self::Codex => "CODEX_HOME",
+        }
     }
 }
 
@@ -95,41 +133,106 @@ struct Budget {
 }
 struct Candidate {
     cwd: String,
+    source: Source,
     instance: String,
     thread_count: usize,
     last_active_ms: i64,
     transcripts: Vec<(PathBuf, i64)>,
 }
 
-/// The enabled Claude instances and the config directory each reads, the built-in instance first.
-fn claude_homes(settings: &Value, host: &Host) -> Vec<(String, PathBuf)> {
-    let instances = settings["providerInstances"].as_object().cloned().unwrap_or_default();
-    let mut entries: Vec<(String, Value, Value)> = instances.iter().filter(|(_, instance)| instance["driver"] == "claudeAgent" && instance["enabled"] != false).map(|(id, instance)| (id.clone(), instance["config"].clone(), instance["environment"].clone())).collect();
-    if !instances.contains_key("claudeAgent") {
-        entries.push(("claudeAgent".into(), Value::Null, Value::Null));
+/// `resolveProviderInstanceEnabled`: an explicit false on the envelope or in the config wins; otherwise the
+/// envelope, then the config, then the driver's default (every built-in driver defaults to enabled).
+fn instance_enabled(instance: &Value, config: &Value) -> bool {
+    let config_enabled = config.get("enabled").and_then(Value::as_bool);
+    let envelope = instance.get("enabled").and_then(Value::as_bool);
+    if envelope == Some(false) || config_enabled == Some(false) {
+        return false;
     }
-    entries.sort_by_key(|(id, _, _)| id != "claudeAgent");
+    envelope.or(config_enabled).unwrap_or(true)
+}
+
+/// `decodeClaudeSettings` / `decodeCodexSettings` for the fields the scan reads: `None` when the
+/// instance's config does not decode, so the instance is left out. A path is trimmed, and absent is empty.
+fn decode_paths<const N: usize>(config: &Value, fields: [&str; N]) -> Option<[String; N]> {
+    let config = if config.is_null() { &Value::Object(Default::default()) } else { config };
+    let object = config.as_object()?;
+    if object.get("enabled").is_some_and(|enabled| !enabled.is_boolean()) {
+        return None;
+    }
+    let mut paths = fields.map(|_| String::new());
+    for (index, field) in fields.iter().enumerate() {
+        match object.get(*field) {
+            None => {}
+            Some(Value::String(text)) => paths[index] = js_trim(text).to_owned(),
+            Some(_) => return None,
+        }
+    }
+    Some(paths)
+}
+
+/// The enabled instances of a source and the home each reads, the built-in instance first: a home that
+/// several instances share is scanned once, for the first of them (`collectCandidates`).
+fn source_homes(source: Source, settings: &Value, host: &Host) -> Vec<(String, PathBuf)> {
+    let driver = source.driver();
+    let instances = settings["providerInstances"].as_object().cloned().unwrap_or_default();
+    // (instance id, config, environment)
+    let mut entries: Vec<(String, Value, Value)> = instances.iter().filter(|(_, instance)| instance["driver"] == driver && instance_enabled(instance, &instance["config"])).map(|(id, instance)| (id.clone(), instance["config"].clone(), instance["environment"].clone())).collect();
+    if !instances.contains_key(driver) {
+        // Settings that predate provider instances: the built-in instance is configured under `providers`.
+        let legacy = settings["providers"][driver].clone();
+        if instance_enabled(&Value::Null, &legacy) {
+            entries.push((driver.into(), legacy, Value::Null));
+        }
+    }
+    entries.sort_by_key(|(id, _, _)| id != driver);
     let mut seen = HashSet::new();
     let mut homes = vec![];
     for (id, config, environment) in entries {
-        if !(config.is_null() || config.is_object()) {
-            continue;
-        }
-        let configured = config["homePath"].as_str().map(str::trim).unwrap_or("");
-        let from_environment = environment.as_array().into_iter().flatten().rev().find(|variable| variable["name"] == "CLAUDE_CONFIG_DIR").and_then(|variable| variable["value"].as_str().map(str::to_owned)).or_else(|| std::env::var("CLAUDE_CONFIG_DIR").ok()).map(|value| value.trim().to_owned()).filter(|value| !value.is_empty());
-        let home = if !configured.is_empty() {
-            crate::claude_skills::expand_home(configured, &host.home)
-        } else if let Some(dir) = from_environment {
-            crate::claude_skills::expand_home(&dir, &host.home)
-        } else {
-            host.home.join(".claude")
+        let variable = source.home_variable();
+        let from_environment = environment
+            .as_array()
+            .into_iter()
+            .flatten()
+            .rev()
+            .find(|entry| entry["name"] == variable)
+            .and_then(|entry| entry["value"].as_str().map(str::to_owned))
+            .or_else(|| host.environment.get(variable).cloned());
+        let home = match source {
+            Source::Claude => {
+                let Some([configured]) = decode_paths(&config, ["homePath"]) else { continue };
+                resolve_claude_config_dir(&configured, from_environment.as_deref(), host)
+            }
+            Source::Codex => {
+                let Some([mut home_path, shadow_home_path]) = decode_paths(&config, ["homePath", "shadowHomePath"]) else { continue };
+                if home_path.is_empty() && shadow_home_path.is_empty() && from_environment.as_deref().is_some_and(|value| !js_trim(value).is_empty()) {
+                    home_path = from_environment.clone().unwrap_or_default();
+                }
+                let environment = HashMap::from([("HOME".to_owned(), host.home.to_string_lossy().into_owned())]);
+                normalize_path(&crate::codex_home::resolve(&home_path, &shadow_home_path, &environment).shared)
+            }
         };
-        let home = std::path::absolute(&home).unwrap_or(home);
         if seen.insert(directory_identity(&home)) {
             homes.push((id, home));
         }
     }
     homes
+}
+
+/// `resolveClaudeConfigDir`: the instance's `homePath` (exported as `CLAUDE_CONFIG_DIR`), then a
+/// `CLAUDE_CONFIG_DIR` already in the environment, then `~/.claude`.
+fn resolve_claude_config_dir(home_path: &str, environment_home: Option<&str>, host: &Host) -> PathBuf {
+    let configured = js_trim(home_path);
+    let chosen = if !configured.is_empty() { configured } else { environment_home.map(js_trim).unwrap_or("") };
+    if chosen.is_empty() {
+        return host.home.join(".claude");
+    }
+    let expanded = crate::claude_skills::expand_home(chosen, &host.home);
+    normalize_path(&std::path::absolute(&expanded).unwrap_or(expanded))
+}
+
+/// `String.prototype.trim`: ECMAScript white space and line terminators, which is not quite Unicode's.
+fn js_trim(text: &str) -> &str {
+    text.trim_matches(|character: char| matches!(character, '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'))
 }
 
 /// Matches directory aliases without assuming the host volume is case-insensitive.
@@ -150,46 +253,98 @@ fn mtime_ms(metadata: &std::fs::Metadata) -> Option<i64> {
     metadata.modified().ok().and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok()).map(|elapsed| elapsed.as_millis() as i64)
 }
 
+/// The discovery operations a home may spend: each directory read and each stat takes one, and once they
+/// run out the walk stops and the scan reports itself truncated.
+struct Operations {
+    remaining: usize,
+    truncated: bool,
+}
+impl Operations {
+    /// Spends one operation, or notes that the budget ran out.
+    fn spend(&mut self) -> bool {
+        if self.remaining == 0 {
+            self.truncated = true;
+            return false;
+        }
+        self.remaining -= 1;
+        true
+    }
+    /// A directory's entries, in the order the filesystem gives them.
+    fn list(&mut self, directory: &Path) -> Vec<String> {
+        if !self.spend() {
+            return vec![];
+        }
+        std::fs::read_dir(directory).map(|entries| entries.filter_map(|entry| entry.ok()?.file_name().into_string().ok()).collect()).unwrap_or_default()
+    }
+    /// Names in reverse order: date-partitioned directories sort chronologically, so walking them backwards
+    /// spends each home's share of the budget on recent sessions.
+    fn list_newest_first(&mut self, directory: &Path) -> Vec<String> {
+        let mut names = self.list(directory);
+        names.sort();
+        names.reverse();
+        names
+    }
+    /// One stat of a file: its transcript, if it is a file with a modification time.
+    fn transcript(&mut self, path: PathBuf, instance: &str) -> Option<Transcript> {
+        let metadata = std::fs::metadata(&path).ok()?;
+        let mtime_ms = mtime_ms(&metadata).filter(|_| metadata.is_file())?;
+        Some(Transcript { path, mtime_ms, size: metadata.len(), instance: instance.to_owned() })
+    }
+}
+
 /// `discoverClaudeTranscripts`: `projects/<dir>/*.jsonl` files, within an operation budget.
-fn discover(home: &Path, instance: &str, budget: usize) -> (Vec<Transcript>, bool) {
-    struct Operations {
-        remaining: usize,
-        truncated: bool,
-    }
-    impl Operations {
-        /// Spends one operation, or notes that the budget ran out.
-        fn spend(&mut self) -> bool {
-            if self.remaining == 0 {
-                self.truncated = true;
-                return false;
-            }
-            self.remaining -= 1;
-            true
-        }
-        fn list(&mut self, directory: &Path) -> Vec<String> {
-            if !self.spend() {
-                return vec![];
-            }
-            std::fs::read_dir(directory).map(|entries| entries.filter_map(|entry| entry.ok()?.file_name().into_string().ok()).collect()).unwrap_or_default()
-        }
-    }
+fn discover_claude(home: &Path, instance: &str, budget: usize) -> (Vec<Transcript>, bool) {
     let projects = home.join("projects");
     let mut operations = Operations { remaining: budget, truncated: false };
     let mut transcripts = vec![];
     for project in operations.list(&projects) {
+        if operations.remaining == 0 {
+            operations.truncated = true;
+            break;
+        }
         let directory = projects.join(&project);
         for entry in operations.list(&directory).into_iter().filter(|entry| entry.ends_with(".jsonl")) {
             if !operations.spend() {
                 break;
             }
-            let path = directory.join(entry);
-            let Ok(metadata) = std::fs::metadata(&path) else { continue };
-            let Some(mtime_ms) = mtime_ms(&metadata).filter(|_| metadata.is_file()) else { continue };
-            transcripts.push(Transcript { path, mtime_ms, size: metadata.len(), instance: instance.to_owned() });
+            transcripts.extend(operations.transcript(directory.join(entry), instance));
         }
+    }
+    (transcripts, operations.truncated)
+}
+
+/// `discoverCodexTranscripts`: `sessions/YYYY/MM/DD/rollout-*.jsonl` files, newest date first, within an
+/// operation budget.
+fn discover_codex(home: &Path, instance: &str, budget: usize) -> (Vec<Transcript>, bool) {
+    let sessions = home.join("sessions");
+    let mut operations = Operations { remaining: budget, truncated: false };
+    let mut transcripts = vec![];
+    for year in operations.list_newest_first(&sessions) {
         if operations.remaining == 0 {
             operations.truncated = true;
             break;
+        }
+        for month in operations.list_newest_first(&sessions.join(&year)) {
+            if operations.remaining == 0 {
+                operations.truncated = true;
+                break;
+            }
+            for day in operations.list_newest_first(&sessions.join(&year).join(&month)) {
+                if operations.remaining == 0 {
+                    operations.truncated = true;
+                    break;
+                }
+                let directory = sessions.join(&year).join(&month).join(&day);
+                for entry in operations.list_newest_first(&directory) {
+                    if !entry.starts_with("rollout-") || !entry.ends_with(".jsonl") {
+                        continue;
+                    }
+                    if !operations.spend() {
+                        break;
+                    }
+                    transcripts.extend(operations.transcript(directory.join(entry), instance));
+                }
+            }
         }
     }
     (transcripts, operations.truncated)
@@ -249,7 +404,7 @@ fn read_cwd(transcript: &Transcript, budget: &mut Budget) -> Option<String> {
     let max_bytes = MAX_TRANSCRIPT_SCAN_BYTES.min(transcript.size);
     let (mut read_total, mut records_read) = (0u64, 0usize);
     let mut remaining = Vec::<u8>::new();
-    let mut reserve = |budget: &mut Budget, records_read: &mut usize| {
+    let reserve = |budget: &mut Budget, records_read: &mut usize| {
         if *records_read == MAX_METADATA_RECORDS_PER_TRANSCRIPT || budget.records == 0 {
             budget.truncated = true;
             return false;
@@ -292,42 +447,51 @@ fn read_cwd(transcript: &Transcript, budget: &mut Budget) -> Option<String> {
     if last.is_empty() || !reserve(budget, &mut records_read) { None } else { extract_cwd(&last) }
 }
 
-/// Every candidate directory Claude Code has run in, plus whether a bound cut the search short.
+/// `collectCandidates`: every directory the agents have run in, plus whether a bound cut the search short.
+/// Each source has its own homes, discovery budget and metadata budget.
 fn collect(settings: &Value, host: &Host) -> (Vec<Candidate>, bool) {
-    let homes = claude_homes(settings, host);
-    let mut transcripts = vec![];
-    let mut truncated = false;
-    let base = MAX_DISCOVERY_OPERATIONS_PER_SOURCE / homes.len().max(1);
-    let extra = MAX_DISCOVERY_OPERATIONS_PER_SOURCE % homes.len().max(1);
-    for (index, (instance, home)) in homes.iter().enumerate() {
-        let budget = base + usize::from(index < extra);
-        if budget == 0 {
-            truncated = true;
-            continue;
-        }
-        let (found, cut) = discover(home, instance, budget);
-        truncated |= cut;
-        transcripts.extend(found);
-    }
-    transcripts.sort_by(|left, right| right.mtime_ms.cmp(&left.mtime_ms).then_with(|| left.path.cmp(&right.path)));
-    if transcripts.len() > MAX_TRANSCRIPTS_PER_SOURCE {
-        truncated = true;
-    }
-    let selected = select_metadata_transcripts(transcripts);
-    let mut budget = Budget { bytes: MAX_METADATA_BYTES_PER_SOURCE, operations: MAX_METADATA_OPERATIONS_PER_SOURCE, records: MAX_METADATA_RECORDS_PER_SOURCE, truncated: false };
     let mut groups: Vec<Candidate> = vec![];
-    for transcript in &selected {
-        let Some(cwd) = read_cwd(transcript, &mut budget) else { continue };
-        match groups.iter_mut().find(|group| group.instance == transcript.instance && group.cwd == cwd) {
-            Some(group) => {
-                group.last_active_ms = group.last_active_ms.max(transcript.mtime_ms);
-                group.thread_count += 1;
-                group.transcripts.push((transcript.path.clone(), transcript.mtime_ms));
+    let mut truncated = false;
+    for source in Source::ALL {
+        let homes = source_homes(source, settings, host);
+        let mut transcripts = vec![];
+        let base = MAX_DISCOVERY_OPERATIONS_PER_SOURCE / homes.len().max(1);
+        let extra = MAX_DISCOVERY_OPERATIONS_PER_SOURCE % homes.len().max(1);
+        for (index, (instance, home)) in homes.iter().enumerate() {
+            let budget = base + usize::from(index < extra);
+            if budget == 0 {
+                truncated = true;
+                continue;
             }
-            None => groups.push(Candidate { cwd, instance: transcript.instance.clone(), thread_count: 1, last_active_ms: transcript.mtime_ms, transcripts: vec![(transcript.path.clone(), transcript.mtime_ms)] }),
+            let (found, cut) = match source {
+                Source::Claude => discover_claude(home, instance, budget),
+                Source::Codex => discover_codex(home, instance, budget),
+            };
+            truncated |= cut;
+            transcripts.extend(found);
         }
+        transcripts.sort_by(|left, right| right.mtime_ms.cmp(&left.mtime_ms).then_with(|| left.path.cmp(&right.path)));
+        if transcripts.len() > MAX_TRANSCRIPTS_PER_SOURCE {
+            truncated = true;
+        }
+        // Give each account a turn before taking another file from the same home.
+        let selected = select_metadata_transcripts(transcripts);
+        let mut budget = Budget { bytes: MAX_METADATA_BYTES_PER_SOURCE, operations: MAX_METADATA_OPERATIONS_PER_SOURCE, records: MAX_METADATA_RECORDS_PER_SOURCE, truncated: false };
+        let first_of_source = groups.len();
+        for transcript in &selected {
+            let Some(cwd) = read_cwd(transcript, &mut budget) else { continue };
+            match groups[first_of_source..].iter_mut().find(|group| group.instance == transcript.instance && group.cwd == cwd) {
+                Some(group) => {
+                    group.last_active_ms = group.last_active_ms.max(transcript.mtime_ms);
+                    group.thread_count += 1;
+                    group.transcripts.push((transcript.path.clone(), transcript.mtime_ms));
+                }
+                None => groups.push(Candidate { cwd, source, instance: transcript.instance.clone(), thread_count: 1, last_active_ms: transcript.mtime_ms, transcripts: vec![(transcript.path.clone(), transcript.mtime_ms)] }),
+            }
+        }
+        truncated |= budget.truncated;
     }
-    (groups, truncated || budget.truncated)
+    (groups, truncated)
 }
 
 // --- git identity without spawning git -------------------------------------------------------
@@ -458,11 +622,12 @@ fn projects_by_root(store: &Store, host: &Host) -> Result<Vec<(String, String, S
     }).collect())
 }
 
-/// `scan`: the directories Claude Code has run in, offered as projects, newest first.
+/// `scan`: the directories the agents have run in, offered as projects, newest first.
 pub fn scan(settings: &Value, store: &Store, host: &Host) -> Result<Value, Value> {
     let (raw, truncated) = collect(settings, host);
     struct Merged {
         path: PathBuf,
+        sources: Vec<&'static str>,
         thread_count: usize,
         last_active_ms: Option<i64>,
         git: Value,
@@ -510,10 +675,13 @@ pub fn scan(settings: &Value, store: &Store, host: &Host) -> Result<Value, Value
         }
         match merged.iter_mut().find(|(existing, _)| *existing == key) {
             Some((_, existing)) => {
+                if !existing.sources.contains(&candidate.source.driver()) {
+                    existing.sources.push(candidate.source.driver());
+                }
                 existing.thread_count += candidate.thread_count;
                 existing.last_active_ms = existing.last_active_ms.max(Some(candidate.last_active_ms));
             }
-            None => merged.push((key.clone(), Merged { path: resolved, thread_count: candidate.thread_count, last_active_ms: Some(candidate.last_active_ms), git: git_identities.get(&key).cloned().unwrap_or(Value::Null) })),
+            None => merged.push((key.clone(), Merged { path: resolved, sources: vec![candidate.source.driver()], thread_count: candidate.thread_count, last_active_ms: Some(candidate.last_active_ms), git: git_identities.get(&key).cloned().unwrap_or(Value::Null) })),
         }
     }
     let imported = projects_by_root(store, host)?;
@@ -528,7 +696,7 @@ pub fn scan(settings: &Value, store: &Store, host: &Host) -> Result<Value, Value
             None => (None, entry.path.to_string_lossy().into_owned()),
         };
         let title = Path::new(&root).file_name().map(|name| name.to_string_lossy().into_owned()).filter(|name| !name.is_empty()).unwrap_or_else(|| root.clone());
-        let mut candidate = json!({"path":root,"title":title,"sources":["claudeAgent"],"threadCount":entry.thread_count,"lastActiveAt":entry.last_active_ms.map(iso),"alreadyImported":project_id.is_some(),"git":entry.git});
+        let mut candidate = json!({"path":root,"title":title,"sources":entry.sources,"threadCount":entry.thread_count,"lastActiveAt":entry.last_active_ms.map(iso),"alreadyImported":project_id.is_some(),"git":entry.git});
         if let Some(id) = project_id {
             candidate["projectId"] = json!(id);
         }
@@ -568,22 +736,33 @@ fn normalize_path(path: &Path) -> PathBuf {
 
 // --- import ----------------------------------------------------------------------------------
 
+/// `AgentSessionThreadMessage`.
+struct Message {
+    role: &'static str,
+    text: String,
+    created_at: String,
+}
+
+/// `AgentSessionThread`: a transcript's visible history.
 struct Imported {
+    source: Source,
     session_id: String,
     title: String,
     model: Option<String>,
     created_at: String,
     updated_at: String,
-    messages: Vec<(String, String, String)>,
+    messages: Vec<Message>,
 }
 
+/// `extractText`: the visible text of a message's content, one block per line.
 fn extract_text(content: &Value) -> String {
     match content {
-        Value::String(text) => text.trim().to_owned(),
-        Value::Array(blocks) => blocks.iter().filter(|block| matches!(block["type"].as_str(), Some("text" | "input_text" | "output_text"))).map(|block| block["text"].as_str().map(str::trim).unwrap_or("").to_owned()).filter(|text| !text.is_empty()).collect::<Vec<_>>().join("\n"),
+        Value::String(text) => js_trim(text).to_owned(),
+        Value::Array(blocks) => blocks.iter().filter(|block| matches!(block["type"].as_str(), Some("text" | "input_text" | "output_text"))).map(|block| js_trim(block["text"].as_str().unwrap_or("")).to_owned()).filter(|text| !text.is_empty()).collect::<Vec<_>>().join("\n"),
         _ => String::new(),
     }
 }
+/// `normalizeTimestamp`.
 fn normalize_timestamp(value: &Value, fallback: &str) -> String {
     value.as_str().and_then(|text| chrono::DateTime::parse_from_rfc3339(text).ok()).map(|time| iso(time.timestamp_millis())).unwrap_or_else(|| fallback.to_owned())
 }
@@ -591,64 +770,261 @@ fn session_id_is_valid(id: &str) -> bool {
     static PATTERN: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
     PATTERN.get_or_init(|| regex::Regex::new(r"(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$").unwrap()).is_match(id)
 }
-/// `shouldRetainDecodedRecord` for Claude: only what the import reads is kept in memory.
-fn retain(record: &Value) -> bool {
-    let cwd = |value: &Value| value.as_str().is_some_and(|cwd| !cwd.trim().is_empty());
-    cwd(&record["cwd"]) || cwd(&record["payload"]["cwd"]) || matches!(record["type"].as_str(), Some("user" | "assistant")) || record["sessionId"].is_string() || record["aiTitle"].is_string() || record["message"]["model"].is_string()
+
+/// `Schema.decodeUnknownOption(TranscriptRecord)` over a record already cut down to the fields the schema names:
+/// the record, or `None` when any of them has the wrong type, in which case the whole record is dropped.
+fn decode_record(record: Value) -> Option<Value> {
+    fn optional(object: &Value, key: &str, valid: fn(&Value) -> bool) -> bool {
+        object.get(key).is_none_or(valid)
+    }
+    fn string(value: &Value) -> bool {
+        value.is_string()
+    }
+    fn boolean(value: &Value) -> bool {
+        value.is_boolean()
+    }
+    fn block(value: &Value) -> bool {
+        value.is_object() && optional(value, "type", string) && optional(value, "text", string)
+    }
+    fn blocks(value: &Value) -> bool {
+        value.as_array().is_some_and(|blocks| blocks.iter().all(block))
+    }
+    fn message(value: &Value) -> bool {
+        value.is_object() && optional(value, "role", string) && optional(value, "model", string) && optional(value, "content", |content| content.is_string() || blocks(content))
+    }
+    fn payload(value: &Value) -> bool {
+        value.is_object() && ["id", "session_id", "type", "role", "message", "model", "cwd"].iter().all(|key| optional(value, key, string)) && optional(value, "content", blocks)
+    }
+    let valid = record.is_object()
+        && ["type", "timestamp", "cwd", "sessionId", "aiTitle"].iter().all(|key| optional(&record, key, string))
+        && ["isSidechain", "isMeta", "isCompactSummary"].iter().all(|key| optional(&record, key, boolean))
+        && optional(&record, "message", message)
+        && optional(&record, "payload", payload);
+    valid.then_some(record)
 }
 
-/// `parseAgentSessionRecords` for Claude: visible user and assistant text only; tools, reasoning
-/// and sidechains are dropped. At most 200 messages are kept, the first user message always.
-fn parse_session(records: &[Value], fallback_session: &str, last_active_ms: i64) -> Option<Imported> {
-    let fallback = iso(last_active_ms);
-    let (mut session_id, mut title, mut model) = (fallback_session.to_owned(), None::<String>, None::<String>);
-    let mut messages: std::collections::VecDeque<(String, String, String)> = Default::default();
-    let mut first_user: Option<(String, String, String)> = None;
-    for record in records {
-        if record["isSidechain"] == true || record["isMeta"] == true || record["isCompactSummary"] == true {
-            continue;
-        }
-        if let Some(id) = record["sessionId"].as_str().map(str::trim).filter(|id| !id.is_empty()) {
-            session_id = id.to_owned();
-        }
-        if let Some(ai_title) = record["aiTitle"].as_str().map(str::trim).filter(|title| !title.is_empty()) {
-            title = Some(ai_title.to_owned());
-        }
-        if let Some(candidate) = record["message"]["model"].as_str().map(str::trim).filter(|model| !model.is_empty() && *model != "<synthetic>") {
-            model = Some(candidate.to_owned());
-        }
-        let Some(role) = record["type"].as_str().filter(|role| matches!(*role, "user" | "assistant")) else { continue };
-        let text = extract_text(&record["message"]["content"]);
-        if text.is_empty() {
-            continue;
-        }
-        let message = (role.to_owned(), text, normalize_timestamp(&record["timestamp"], &fallback));
-        if first_user.is_none() && role == "user" {
-            first_user = Some(message.clone());
-        }
-        messages.push_back(message);
-        if messages.len() > MAX_IMPORTED_MESSAGES {
-            messages.pop_front();
+/// `extractDecodedCwd`.
+fn record_cwd(record: &Value) -> Option<String> {
+    [&record["cwd"], &record["payload"]["cwd"]].into_iter().find_map(|cwd| cwd.as_str().map(js_trim).filter(|cwd| !cwd.is_empty()).map(str::to_owned))
+}
+
+/// `shouldRetainDecodedRecord`: only what the import reads is kept in memory.
+fn should_retain(source: Source, record: &Value) -> bool {
+    if record_cwd(record).is_some() {
+        return true;
+    }
+    let kind = record["type"].as_str();
+    let payload = &record["payload"];
+    match source {
+        Source::Claude => matches!(kind, Some("user" | "assistant")) || !record["sessionId"].is_null() || !record["aiTitle"].is_null() || !record["message"]["model"].is_null(),
+        Source::Codex => {
+            matches!(kind, Some("session_meta" | "turn_context"))
+                || (kind == Some("event_msg") && payload["type"] == "user_message")
+                || (kind == Some("response_item") && payload["type"] == "message" && matches!(payload["role"].as_str(), Some("user" | "assistant")))
         }
     }
-    let first_user = first_user?;
-    if session_id.trim().is_empty() {
+}
+
+/// `codexTurnId`: the turn a response item belongs to, when its metadata names one.
+fn codex_turn_id(metadata: &Value) -> Option<String> {
+    metadata.as_object()?.get("turn_id")?.as_str().filter(|turn| !js_trim(turn).is_empty()).map(str::to_owned)
+}
+
+/// The first pass of `parseAgentSessionRecords` for Codex. A response item can include generated setup text
+/// beside the real prompt. A response-user record is suppressed only when the shared turn id and a verbatim
+/// event copy prove which prompt the user submitted. Returns the indices of the records to suppress.
+fn canonical_codex_response_users(records: &[Value]) -> HashSet<usize> {
+    struct Turn {
+        canonical_texts: HashSet<String>,
+        response_users: Vec<(usize, String, String)>,
+    }
+    fn finish(turn: &mut Turn, suppressed: &mut HashSet<usize>) {
+        let canonical_turns: HashSet<&String> = turn.response_users.iter().filter(|(_, _, text)| turn.canonical_texts.contains(text)).map(|(_, turn_id, _)| turn_id).collect();
+        for (index, turn_id, _) in &turn.response_users {
+            if canonical_turns.contains(turn_id) {
+                suppressed.insert(*index);
+            }
+        }
+        turn.canonical_texts.clear();
+        turn.response_users.clear();
+    }
+    let mut suppressed = HashSet::new();
+    let mut turn = Turn { canonical_texts: HashSet::new(), response_users: vec![] };
+    for (index, record) in records.iter().enumerate() {
+        let (kind, payload) = (record["type"].as_str(), &record["payload"]);
+        let is_message = kind == Some("response_item") && payload["type"] == "message";
+        if is_message && payload["role"] == "assistant" {
+            finish(&mut turn, &mut suppressed);
+        } else if kind == Some("event_msg") && payload["type"] == "user_message" {
+            let text = js_trim(payload["message"].as_str().unwrap_or(""));
+            if !text.is_empty() {
+                turn.canonical_texts.insert(text.to_owned());
+            }
+        } else if is_message && payload["role"] == "user" {
+            let text = extract_text(&payload["content"]);
+            if let (Some(turn_id), false) = (codex_turn_id(&payload["internal_chat_message_metadata_passthrough"]), text.is_empty()) {
+                turn.response_users.push((index, turn_id, text));
+            }
+        }
+    }
+    finish(&mut turn, &mut suppressed);
+    suppressed
+}
+
+/// The messages kept so far: the newest 200, and the conversation's first user message wherever it went.
+struct History {
+    messages: VecDeque<Retained>,
+    first_user: Option<Retained>,
+    next_sequence: usize,
+}
+#[derive(Clone)]
+struct Retained {
+    /// Identity, since two messages can carry the same words.
+    sequence: usize,
+    role: &'static str,
+    text: String,
+    created_at: String,
+    codex_response_user: bool,
+}
+impl History {
+    fn retain(&mut self, role: &'static str, text: String, created_at: String, codex_response_user: bool) {
+        let message = Retained { sequence: self.next_sequence, role, text, created_at, codex_response_user };
+        self.next_sequence += 1;
+        if self.first_user.is_none() && role == "user" {
+            self.first_user = Some(message.clone());
+        }
+        self.messages.push_back(message);
+        if self.messages.len() > MAX_IMPORTED_MESSAGES {
+            self.messages.pop_front();
+        }
+    }
+    /// `hasMatchingCodexEventInTurn`: the turn so far already holds the canonical event copy of this prompt.
+    fn has_matching_codex_event_in_turn(&self, text: &str) -> bool {
+        let wanted = js_trim(text);
+        for message in self.messages.iter().rev() {
+            if message.role == "assistant" {
+                return false;
+            }
+            if message.role == "user" && !message.codex_response_user && js_trim(&message.text) == wanted {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+/// The first `units` UTF-16 code units of `text` (`String.prototype.slice(0, units)`), without a split character.
+fn utf16_prefix(text: &str, units: usize) -> &str {
+    let mut used = 0;
+    for (offset, character) in text.char_indices() {
+        used += character.len_utf16();
+        if used > units {
+            return &text[..offset];
+        }
+    }
+    text
+}
+
+/// `parseAgentSessionRecords`: keep visible user and assistant text while ignoring tools, reasoning and
+/// malformed records. Claude filenames are session ids; Codex rollout filenames include extra timestamp
+/// text, so only the transcript's metadata can provide a resumable id.
+fn parse_records(source: Source, records: &[Value], fallback_session: &str, last_active_ms: i64) -> Option<Imported> {
+    let fallback = iso(last_active_ms);
+    let mut session_id = if source == Source::Codex { String::new() } else { fallback_session.to_owned() };
+    let (mut title, mut model, mut has_codex_session_id) = (None::<String>, None::<String>, false);
+    let mut history = History { messages: VecDeque::new(), first_user: None, next_sequence: 0 };
+    let canonical = if source == Source::Codex { canonical_codex_response_users(records) } else { HashSet::new() };
+    for (index, record) in records.iter().enumerate() {
+        let (kind, payload) = (record["type"].as_str(), &record["payload"]);
+        let created_at = || normalize_timestamp(&record["timestamp"], &fallback);
+        if source == Source::Claude {
+            if record["isSidechain"] == true || record["isMeta"] == true || record["isCompactSummary"] == true {
+                continue;
+            }
+            if let Some(id) = record["sessionId"].as_str().map(js_trim).filter(|id| !id.is_empty()) {
+                session_id = id.to_owned();
+            }
+            if let Some(ai_title) = record["aiTitle"].as_str().map(js_trim).filter(|title| !title.is_empty()) {
+                title = Some(ai_title.to_owned());
+            }
+            // Claude uses this sentinel for local error responses. It is not a model id that can be
+            // selected when the imported session resumes.
+            if let Some(candidate) = record["message"]["model"].as_str().map(js_trim).filter(|model| !model.is_empty() && *model != "<synthetic>") {
+                model = Some(candidate.to_owned());
+            }
+            let Some(role) = kind.and_then(|kind| ["user", "assistant"].into_iter().find(|role| *role == kind)) else { continue };
+            let text = extract_text(&record["message"]["content"]);
+            if !text.is_empty() {
+                history.retain(role, text, created_at(), false);
+            }
+            continue;
+        }
+        if kind == Some("session_meta") {
+            let id = payload["id"].as_str().map(js_trim).filter(|id| !id.is_empty()).or_else(|| payload["session_id"].as_str().map(js_trim).filter(|id| !id.is_empty()));
+            if let (false, Some(id)) = (has_codex_session_id, id) {
+                session_id = id.to_owned();
+                has_codex_session_id = true;
+            }
+            continue;
+        }
+        if kind == Some("turn_context") {
+            if let Some(candidate) = payload["model"].as_str().map(js_trim).filter(|model| !model.is_empty()) {
+                model = Some(candidate.to_owned());
+                continue;
+            }
+        }
+        if kind == Some("event_msg") && payload["type"] == "user_message" {
+            let text = payload["message"].as_str().unwrap_or("");
+            if js_trim(text).is_empty() {
+                continue;
+            }
+            // Codex can write the same prompt as both a response item and an event. Remove only the matching
+            // response copy so mixed-format logs keep every distinct user message.
+            for position in (0..history.messages.len()).rev() {
+                let message = &history.messages[position];
+                if message.role == "assistant" {
+                    break;
+                }
+                if message.codex_response_user && js_trim(&message.text) == js_trim(text) {
+                    if history.first_user.as_ref().is_some_and(|first| first.sequence == message.sequence) {
+                        history.first_user = None;
+                    }
+                    history.messages.remove(position);
+                    break;
+                }
+            }
+            history.retain("user", text.to_owned(), created_at(), false);
+            continue;
+        }
+        let Some(role) = (kind == Some("response_item") && payload["type"] == "message").then(|| ["user", "assistant"].into_iter().find(|role| payload["role"] == *role)).flatten() else { continue };
+        let text = extract_text(&payload["content"]);
+        if text.is_empty() || (role == "user" && (canonical.contains(&index) || history.has_matching_codex_event_in_turn(&text))) {
+            continue;
+        }
+        history.retain(role, text, created_at(), role == "user");
+    }
+    let first_user = history.first_user.take()?;
+    if js_trim(&session_id).is_empty() {
         return None;
     }
-    let mut retained: Vec<_> = messages.into_iter().collect();
-    // The conversation's opening request survives even when 200 later messages crowd it out.
-    if !retained.iter().any(|message| *message == first_user) {
-        retained.drain(..retained.len().saturating_sub(MAX_IMPORTED_MESSAGES - 1));
-        retained.insert(0, first_user.clone());
-    }
-    let derived: String = first_user.1.trim().split('\n').next().unwrap_or("").chars().take(100).collect::<String>().trim().to_owned();
+    let first_retained = history.messages.iter().any(|message| message.sequence == first_user.sequence);
+    let visible = |message: Retained| Message { role: message.role, text: message.text, created_at: message.created_at };
+    let messages: Vec<Message> = if first_retained {
+        history.messages.into_iter().map(visible).collect()
+    } else {
+        // The conversation's opening request survives even when 200 later messages crowd it out.
+        let keep = history.messages.len().saturating_sub(MAX_IMPORTED_MESSAGES - 1);
+        std::iter::once(first_user.clone()).chain(history.messages.into_iter().skip(keep)).map(visible).collect()
+    };
+    let derived = js_trim(utf16_prefix(js_trim(&first_user.text).split('\n').next().unwrap_or(""), 100));
     Some(Imported {
-        title: title.unwrap_or(if derived.is_empty() { "Imported thread".into() } else { derived }),
-        created_at: retained.first().map(|message| message.2.clone()).unwrap_or_else(|| fallback.clone()),
+        source,
+        title: title.unwrap_or_else(|| if derived.is_empty() { "Imported thread".into() } else { derived.to_owned() }),
+        created_at: messages.first().map_or_else(|| fallback.clone(), |message| message.created_at.clone()),
         updated_at: fallback,
         model,
         session_id,
-        messages: retained,
+        messages,
     })
 }
 
@@ -656,28 +1032,61 @@ struct Identity {
     size: u64,
     mtime_ms: Option<i64>,
     #[cfg(unix)]
+    device: u64,
+    #[cfg(unix)]
     ino: u64,
 }
 fn identity_of(metadata: &std::fs::Metadata) -> Identity {
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
-        Identity { size: metadata.len(), mtime_ms: mtime_ms(metadata), ino: metadata.ino() }
+        Identity { size: metadata.len(), mtime_ms: mtime_ms(metadata), device: metadata.dev(), ino: metadata.ino() }
     }
     #[cfg(not(unix))]
     Identity { size: metadata.len(), mtime_ms: mtime_ms(metadata) }
 }
 fn same_identity(left: &Identity, right: &Identity) -> bool {
     #[cfg(unix)]
-    let same_inode = left.ino == right.ino;
+    let same_file = left.device == right.device && left.ino == right.ino;
     #[cfg(not(unix))]
-    let same_inode = true;
-    left.size == right.size && left.mtime_ms == right.mtime_ms && same_inode
+    let same_file = true;
+    left.size == right.size && left.mtime_ms == right.mtime_ms && same_file
 }
 
-/// `readTranscript`: selected history only, within the memory and record budgets. The file's
-/// identity is checked on both sides of the read, so a file rewritten meanwhile is skipped.
-fn read_transcript(path: &Path, expected: &Identity, record_limit: usize) -> Option<(Vec<Value>, usize)> {
+/// The selected, decoded records of a transcript stream and how many records it held, or `None` when it held
+/// more than `record_limit`. Each record is cut down to the fields the import reads while it is read, within the
+/// selected-history budget shared by the whole transcript; running out of it is an error for the transcript.
+fn read_records(reader: impl std::io::BufRead, source: Source, record_limit: usize) -> Result<Option<(Vec<Value>, usize)>, ReadError> {
+    let mut records = RecordReader::new(reader);
+    let (mut selected, mut count, mut history_bytes) = (vec![], 0usize, 0usize);
+    loop {
+        let mut record_bytes = 0usize;
+        let history = history_bytes;
+        let next = records.next(
+            &mut |bytes| {
+                record_bytes += bytes;
+                if history + record_bytes > MAX_IMPORT_HISTORY_BYTES {
+                    return Err(LimitError("Transcript selected history exceeds the 32 MiB memory budget"));
+                }
+                Ok(())
+            },
+            &|path: &[Seg]| TRANSCRIPT_RECORD.includes(path, 0),
+        )?;
+        let Some(projected) = next else { return Ok(Some((selected, count))) };
+        count += 1;
+        if count > record_limit {
+            return Ok(None);
+        }
+        if let Some(record) = projected.and_then(decode_record).filter(|record| should_retain(source, record)) {
+            history_bytes += record_bytes;
+            selected.push(record);
+        }
+    }
+}
+
+/// `readTranscript`: selected history only, within the memory and record budgets. The file's identity is
+/// checked on both sides of the read, so a file rewritten meanwhile is skipped.
+fn read_transcript(path: &Path, expected: &Identity, record_limit: usize, source: Source) -> Option<(Vec<Value>, usize)> {
     if expected.size > MAX_IMPORTED_TRANSCRIPT_BYTES {
         return None;
     }
@@ -685,31 +1094,16 @@ fn read_transcript(path: &Path, expected: &Identity, record_limit: usize) -> Opt
     if !same_identity(expected, &identity_of(&file.metadata().ok()?)) {
         return None;
     }
-    let mut reader = std::io::BufReader::with_capacity(32 * 1024, file).take(expected.size);
-    let (mut records, mut count, mut history_bytes) = (vec![], 0usize, 0usize);
-    let mut line = Vec::new();
-    loop {
-        line.clear();
-        if reader.read_until(b'\n', &mut line).ok()? == 0 {
-            break;
-        }
-        count += 1;
-        if count > record_limit {
+    let mut reader = std::io::BufReader::with_capacity(32 * 1024, file.take(expected.size));
+    let read = read_records(&mut reader, source, record_limit);
+    let read = match read {
+        Ok(read) => read?,
+        Err(error) => {
+            tracing::warn!(path = %path.display(), %error, "Could not read imported transcript");
             return None;
         }
-        let text = String::from_utf8_lossy(&line);
-        let Ok(record) = serde_json::from_str::<Value>(text.trim()) else { continue };
-        if !record.is_object() || !retain(&record) {
-            continue;
-        }
-        history_bytes += line.len();
-        if history_bytes > MAX_IMPORT_HISTORY_BYTES {
-            return None;
-        }
-        records.push(record);
-    }
-    let after = std::fs::metadata(path).ok()?;
-    same_identity(expected, &identity_of(&after)).then_some((records, count))
+    };
+    same_identity(expected, &identity_of(&reader.get_ref().get_ref().metadata().ok()?)).then_some(read)
 }
 
 pub struct ImportRequest<'a> {
@@ -717,8 +1111,8 @@ pub struct ImportRequest<'a> {
     pub expected_workspace_root: Option<&'a str>,
 }
 
-/// `importRecentAgentThreads`: the project's sessions from the last 30 days, newest first, within
-/// the transcript, byte and record budgets. Returns `(imported, skipped)`.
+/// `importRecentAgentThreads`: the project's sessions from the last 30 days, newest first, within the
+/// transcript, byte and record budgets. Returns `(imported, skipped)`.
 pub fn import(settings: &Value, store: &Store, host: &Host, request: &ImportRequest<'_>) -> Result<(u64, u64), Value> {
     let project = store.projection("project", request.project_id).map_err(|error| scan_error("read-projects", error))?.filter(|project| project["deletedAt"].is_null());
     let Some(project) = project else { return Err(json!({"_tag":"AgentSessionImportProjectNotFoundError","projectId":request.project_id})) };
@@ -734,7 +1128,7 @@ pub fn import(settings: &Value, store: &Store, host: &Host, request: &ImportRequ
     let root_identity = directory_identity(&root_path);
     let now = chrono::Utc::now().timestamp_millis();
     let (raw, _) = collect(settings, host);
-    let mut eligible: Vec<(String, PathBuf, i64)> = vec![];
+    let mut eligible: Vec<(Source, String, PathBuf, i64)> = vec![];
     for candidate in &raw {
         let expanded = crate::claude_skills::expand_home(candidate.cwd.trim(), &host.home);
         if !expanded.is_absolute() || directory_identity(&normalize_path(&expanded)) != root_identity {
@@ -742,15 +1136,15 @@ pub fn import(settings: &Value, store: &Store, host: &Host, request: &ImportRequ
         }
         for (path, mtime_ms) in &candidate.transcripts {
             if *mtime_ms >= now - RECENT_THREAD_WINDOW_MS && *mtime_ms <= now {
-                eligible.push((candidate.instance.clone(), path.clone(), *mtime_ms));
+                eligible.push((candidate.source, candidate.instance.clone(), path.clone(), *mtime_ms));
             }
         }
     }
-    eligible.sort_by(|left, right| right.2.cmp(&left.2).then_with(|| left.1.cmp(&right.1)));
+    eligible.sort_by(|left, right| right.3.cmp(&left.3).then_with(|| left.2.cmp(&right.2)));
     let (mut imported, mut skipped) = (0u64, 0u64);
     let (mut bytes_remaining, mut transcripts_remaining, mut records_remaining) = (MAX_IMPORT_BYTES, MAX_IMPORT_TRANSCRIPTS, MAX_IMPORT_RECORDS);
     let mut seen_sessions = HashSet::new();
-    for (instance, path, mtime_ms) in eligible {
+    for (source, instance, path, mtime_ms) in eligible {
         let Ok(metadata) = std::fs::metadata(&path) else { skipped += 1; continue };
         if !metadata.is_file() {
             skipped += 1;
@@ -764,25 +1158,24 @@ pub fn import(settings: &Value, store: &Store, host: &Host, request: &ImportRequ
         // Reserve the whole file even if its read or parse fails.
         transcripts_remaining -= 1;
         bytes_remaining -= identity.size;
-        let Some((records, count)) = read_transcript(&path, &identity, records_remaining) else { skipped += 1; continue };
+        let Some((records, count)) = read_transcript(&path, &identity, records_remaining, source) else { skipped += 1; continue };
         records_remaining -= count;
         // A stable replacement file can belong to a different project than the cached candidate.
-        let cwd = records.iter().find_map(|record| [&record["cwd"], &record["payload"]["cwd"]].into_iter().find_map(|cwd| cwd.as_str().map(str::trim).filter(|cwd| !cwd.is_empty()).map(str::to_owned)));
-        let belongs = cwd.is_some_and(|cwd| {
+        let belongs = records.iter().find_map(record_cwd).is_some_and(|cwd| {
             let expanded = crate::claude_skills::expand_home(&cwd, &host.home);
             expanded.is_absolute() && directory_identity(&normalize_path(&expanded)) == root_identity
         });
         let fallback = path.file_stem().map(|stem| stem.to_string_lossy().into_owned()).unwrap_or_default();
-        let Some(thread) = belongs.then(|| parse_session(&records, &fallback, mtime_ms)).flatten() else { skipped += 1; continue };
+        let Some(thread) = belongs.then(|| parse_records(source, &records, &fallback, mtime_ms)).flatten() else { skipped += 1; continue };
         if !seen_sessions.insert(format!("{instance}\0{}", thread.session_id)) {
             continue;
         }
-        if !session_id_is_valid(&thread.session_id) {
+        if thread.source == Source::Claude && !session_id_is_valid(&thread.session_id) {
             skipped += 1;
             continue;
         }
         match write_thread(store, request.project_id, &instance, &thread) {
-            Ok(_) => imported += 1,
+            Ok(()) => imported += 1,
             Err(error) => {
                 tracing::warn!(session = %thread.session_id, %error, "Could not import an agent session");
                 skipped += 1;
@@ -792,34 +1185,99 @@ pub fn import(settings: &Value, store: &Store, host: &Host, request: &ImportRequ
     Ok((imported, skipped))
 }
 
-/// The thread, its messages, and the provider thread bound to the native session. Re-importing a
-/// session whose thread exists leaves it untouched.
-fn write_thread(store: &Store, project_id: &str, instance: &str, thread: &Imported) -> Result<bool, String> {
+const IMPORT_EVENT_PREFIX: &str = "agent-session-import:v2";
+
+/// The thread, its messages, and the provider thread bound to the native session, as the original's importer
+/// writes them (`AgentSessionImporter`): a settled thread of imported history, created and last updated when
+/// the transcript was, whose first message resumes the native session. An existing import is left untouched,
+/// unless its thread belongs to another project or has activity of its own.
+///
+/// The original saves a runtime row whose resume cursor names the session and marks the provider thread `idle`.
+/// This server's adapters resume from the provider thread's native reference alone, and the Claude adapter
+/// knows an imported session by its provider thread being `not_loaded` (as `thread.create` leaves one made
+/// from an imported native thread), so the provider thread is written that way.
+fn write_thread(store: &Store, project_id: &str, instance: &str, thread: &Imported) -> Result<(), String> {
     let thread_id = format!("import:{instance}:{}", thread.session_id);
-    if store.projection("thread", &thread_id).map_err(|error| error.to_string())?.is_some() {
-        return Ok(true);
+    if let Some(existing) = store.projection("thread", &thread_id).map_err(|error| error.to_string())? {
+        if existing["thread"]["projectId"] != project_id {
+            return Err(format!("Imported thread '{thread_id}' belongs to project '{}', not '{project_id}'.", existing["thread"]["projectId"].as_str().unwrap_or("")));
+        }
+        // `AgentSessionThreadModifiedError`. A thread an earlier build of this port imported has no history origin
+        // but is just as untouched: it was made by the server, and has never run.
+        let imported_only = existing["thread"]["historyOrigin"] == "v1_import" || (existing["thread"]["createdBy"] == "system" && existing["thread"]["creationSource"] == "server" && existing["runs"].as_array().is_none_or(Vec::is_empty));
+        if !imported_only {
+            return Err(format!("Imported thread '{thread_id}' already contains non-imported activity."));
+        }
+        return Ok(());
     }
-    let model = thread.model.clone().unwrap_or_else(|| DEFAULT_CLAUDE_MODEL.into());
-    let title = if thread.title.trim().is_empty() { "Untitled thread".to_owned() } else { thread.title.clone() };
-    let command = json!({
-        "type":"thread.create","commandId":format!("agent-session-import:v2:{thread_id}"),"threadId":thread_id,"projectId":project_id,"title":title,
-        "modelSelection":{"instanceId":instance,"model":model},"runtimeMode":"approval-required","interactionMode":"default",
-        "importedNativeThread":{"ref":{"driver":"claudeAgent","nativeId":thread.session_id,"strength":"strong"},"metadata":{"itemIdentityVersion":2}},
-        "branch":null,"worktreePath":null,"createdBy":"system","creationSource":"server"
-    });
-    let receipt = crate::thread::ThreadService::new(store.clone()).dispatch(&command, chrono::Utc::now()).map_err(|error| error.to_string())?;
-    if receipt.status == "rejected" {
-        return Err("The thread was rejected.".into());
+    let driver = thread.source.driver();
+    let model = thread.model.clone().unwrap_or_else(|| match thread.source {
+        Source::Claude => DEFAULT_CLAUDE_MODEL,
+        Source::Codex => DEFAULT_CODEX_MODEL,
+    }.into());
+    let title = if js_trim(&thread.title).is_empty() { "Untitled thread".to_owned() } else { thread.title.clone() };
+    let provider_thread_id = format!("provider-thread:provider:{driver}:native-thread:{}", crate::provider_maintenance::encode_uri_component(&thread.session_id));
+    let (created_at, updated_at) = (thread.created_at.as_str(), thread.updated_at.as_str());
+    let command_id = format!("{IMPORT_EVENT_PREFIX}:{thread_id}");
+    let make = |event_id: String, kind: &'static str, occurred_at: &str, payload: Value| -> Result<crate::persistence::Event, String> {
+        let payload = t3_contracts::normalize_event_payload(kind, payload).map_err(|error| error.to_string())?;
+        Ok(crate::persistence::Event {
+            event_id,
+            aggregate_kind: "thread".into(),
+            aggregate_id: thread_id.clone(),
+            occurred_at: occurred_at.to_owned(),
+            command_id: Some(command_id.clone()),
+            causation_event_id: None,
+            correlation_id: Some(command_id.clone()),
+            event_type: kind.into(),
+            payload,
+            metadata: json!({"providerInstanceId":instance}),
+        })
+    };
+    let mut events = vec![make(
+        format!("{IMPORT_EVENT_PREFIX}:thread:{thread_id}:created"),
+        "thread.created",
+        created_at,
+        json!({
+            "createdBy":"system","creationSource":"server","id":thread_id,"projectId":project_id,"title":title,
+            "providerInstanceId":instance,"modelSelection":{"instanceId":instance,"model":model},
+            "runtimeMode":DEFAULT_RUNTIME_MODE,"interactionMode":"default","branch":null,"worktreePath":null,
+            "linkedPullRequest":null,"branchPullRequest":null,"activeProviderThreadId":provider_thread_id,
+            "historyOrigin":"v1_import","lineage":{"parentThreadId":null,"relationshipToParent":null,"rootThreadId":thread_id},"forkedFrom":null,
+            "createdAt":created_at,"updatedAt":updated_at,"archivedAt":null,"settledOverride":"settled","settledAt":updated_at,
+            "unsettledAt":null,"snoozedUntil":null,"snoozedAt":null,"pinnedAt":null,"pinOrderKey":null,"activeOrderKey":null,
+            "lastVisitedAt":null,"deletedAt":null
+        }),
+    )?];
+    for (index, message) in thread.messages.iter().enumerate() {
+        let (message_event, item_event) = message_events(&thread_id, index, message);
+        events.push(make(format!("{IMPORT_EVENT_PREFIX}:message:{thread_id}:{index:06}"), "message.updated", &message.created_at, message_event)?);
+        events.push(make(format!("{IMPORT_EVENT_PREFIX}:turn-item:{thread_id}:{index:06}"), "turn-item.updated", &message.created_at, item_event)?);
     }
-    let events: Vec<(&'static str, Value)> = thread.messages.iter().enumerate().flat_map(|(index, (role, text, at))| message_events(&thread_id, index, role, text, at)).collect();
-    crate::codex_runtime::commit(store, &thread_id, |_| Ok(events.clone())).map_err(|error| error.to_string())?;
-    Ok(true)
+    events.push(make(
+        format!("{IMPORT_EVENT_PREFIX}:provider-thread:{provider_thread_id}"),
+        "provider-thread.updated",
+        updated_at,
+        json!({
+            "id":provider_thread_id,"driver":driver,"providerInstanceId":instance,"providerSessionId":null,"appThreadId":thread_id,"ownerNodeId":null,
+            "nativeThreadRef":{"driver":driver,"nativeId":thread.session_id,"strength":"strong"},"nativeConversationHeadRef":null,"status":"not_loaded",
+            "firstRunOrdinal":null,"lastRunOrdinal":null,"handoffIds":[],"forkedFrom":null,"pendingBackgroundTasks":[],"contextUsage":null,
+            "nativeMetadata":null,"goal":null,"createdAt":created_at,"updatedAt":updated_at
+        }),
+    )?);
+    store
+        .dispatch_unreceipted(&command_id, "thread", &thread_id, "agent-session.import", chrono::Utc::now(), |_| Ok(crate::persistence::Decision::Accepted { events, effects: vec![] }), crate::thread::reduce)
+        .map_err(|error| error.to_string())?;
+    Ok(())
 }
-fn message_events(thread_id: &str, index: usize, role: &str, text: &str, at: &str) -> Vec<(&'static str, Value)> {
+
+/// `messageEvents`: the message and the turn item that shows it.
+fn message_events(thread_id: &str, index: usize, message: &Message) -> (Value, Value) {
     let suffix = format!("{index:06}");
     let message_id = format!("{thread_id}:{suffix}");
-    let item_id = format!("agent-session-import:v2:turn-item:{thread_id}:{suffix}");
-    let message = json!({"createdBy":if role == "user" { "user" } else { "agent" },"creationSource":"server","id":message_id,"threadId":thread_id,"runId":null,"nodeId":null,"role":role,"text":text,"attachments":[],"streaming":false,"createdAt":at,"updatedAt":at});
+    let item_id = format!("{IMPORT_EVENT_PREFIX}:turn-item:{thread_id}:{suffix}");
+    let (role, text, at) = (message.role, &message.text, &message.created_at);
+    let row = json!({"createdBy":if role == "user" { "user" } else { "agent" },"creationSource":"server","id":message_id,"threadId":thread_id,"runId":null,"nodeId":null,"role":role,"text":text,"attachments":[],"streaming":false,"createdAt":at,"updatedAt":at});
     let mut item = json!({"id":item_id,"threadId":thread_id,"runId":null,"nodeId":null,"providerThreadId":null,"providerTurnId":null,"nativeItemRef":null,"parentItemId":null,"ordinal":index + 1,"status":"completed","title":null,"startedAt":at,"completedAt":at,"updatedAt":at,"messageId":message_id,"text":text});
     if role == "user" {
         item["createdBy"] = json!("user");
@@ -831,7 +1289,7 @@ fn message_events(thread_id: &str, index: usize, role: &str, text: &str, at: &st
         item["type"] = json!("assistant_message");
         item["streaming"] = json!(false);
     }
-    vec![("message.updated", message), ("turn-item.updated", item)]
+    (row, item)
 }
 
 // --- RPC -------------------------------------------------------------------------------------
@@ -873,3 +1331,7 @@ pub async fn command(state: &ApiState, tag: &str, payload: Value) -> Result<Valu
         other => Err(json!({"_tag":"NativeMethodUnsupportedError","method":other})),
     }
 }
+
+#[cfg(test)]
+#[path = "agent_session_tests.rs"]
+mod tests;

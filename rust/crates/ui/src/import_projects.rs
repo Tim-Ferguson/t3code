@@ -295,7 +295,7 @@ fn Dialog(state: Store<UiModel>, transport: TransportHandle, #[props(default)] f
                                 let chosen = keys.iter().filter(|key| selected_keys_contains(&selection, &candidates, key, &environment)).count();
                                 let single = group.candidates.len() == 1;
                                 let is_collapsed = collapsed.read().contains(&group.key);
-                                let sources: Vec<&str> = { let mut all: Vec<&str> = group.candidates.iter().flat_map(|candidate| candidate.sources.iter().map(String::as_str)).collect(); all.dedup(); all };
+                                let sources = logic::sources_of(&group.candidates);
                                 if single {
                                     let candidate = group.candidates[0];
                                     rsx! { Row { key: "{group.key}", candidate: candidate.clone(), label: group.label.clone(), secondary: if group.repository.is_some() { None } else { Some(candidate.path.clone()) }, nested: false, checked: chosen == 1, disabled: *importing.read(),

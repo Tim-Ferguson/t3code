@@ -17,6 +17,7 @@ use t3_server::{
     project::ProjectService,
     provider_registry::ProviderRegistry,
     transport::{ApiState, router},
+    agent_sessions::{Host, ImportRequest, import},
 };
 use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream,
@@ -167,6 +168,36 @@ impl Harness {
         self.server.take().unwrap().await.unwrap();
         self.execution.shutdown().await;
     }
+}
+
+/// A Codex session imported from `~/.codex` is a thread whose first message resumes the native thread the
+/// rollout names (`thread/resume` with its id), not one started fresh.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_imported_codex_session_resumes_its_native_thread_on_the_first_message() {
+    let mut harness = harness("full-access", "default").await;
+    let cwd = std::fs::canonicalize(harness._directory.path()).unwrap();
+    let session = "0199c0de-aaaa-7bbb-8ccc-ddddeeeeffff";
+    let rollout = cwd.join("codex-home/sessions/2026/08/24").join(format!("rollout-2026-08-24T10-00-00-{session}.jsonl"));
+    std::fs::create_dir_all(rollout.parent().unwrap()).unwrap();
+    let transcript = [json!({"type":"session_meta","payload":{"id":session,"cwd":cwd.join("workspace")}}), json!({"type":"event_msg","payload":{"type":"user_message","message":"Earlier prompt"}})].iter().map(Value::to_string).collect::<Vec<_>>().join("\n");
+    std::fs::write(&rollout, transcript).unwrap();
+    let settings = json!({"providerInstances":{"codex":{"driver":"codex","config":{"homePath":cwd.join("codex-home")}}}});
+    let host = Host { home: cwd.join("home"), base_dir: cwd.join("base"), temp_dirs: vec![], environment: Default::default() };
+    let imported = import(&settings, &harness.store, &host, &ImportRequest { project_id: "project", expected_workspace_root: None }).unwrap();
+    assert_eq!(imported, (1, 0));
+
+    harness.thread = format!("import:codex:{session}");
+    harness.send("continue", json!({})).await;
+    harness.settled(1).await;
+    let requests: Vec<Value> = std::fs::read_to_string(&harness.requests).unwrap().lines().map(|line| serde_json::from_str(line).unwrap()).collect();
+    let threads: Vec<(&str, &str)> = requests.iter().filter(|request| matches!(request["method"].as_str(), Some("thread/start" | "thread/resume"))).map(|request| (request["method"].as_str().unwrap(), request["params"]["threadId"].as_str().unwrap_or(""))).collect();
+    assert_eq!(threads, [("thread/resume", session)], "{requests:?}");
+    let view = harness.view();
+    assert_eq!(view["providerThreads"][0]["nativeThreadRef"]["nativeId"], session);
+    assert_eq!(view["runs"][0]["status"], "completed");
+    // The imported history is still ahead of the new message.
+    assert_eq!(view["turnItems"][0]["text"], "Earlier prompt");
+    harness.finish().await;
 }
 
 /// Ask with `tag`, answer with `decision`, and return the finished view, the request Codex made

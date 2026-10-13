@@ -145,6 +145,7 @@ mod usage_aggregation;
 pub mod usage_service;
 pub mod usage_rpc;
 pub mod agent_sessions;
+mod agent_session_json;
 #[cfg(test)]
 mod usage_tests;
 pub mod thread;

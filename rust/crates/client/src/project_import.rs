@@ -163,6 +163,18 @@ pub fn group(candidates: &[Candidate]) -> (Vec<Group<'_>>, Vec<&Candidate>) {
     (repositories, other)
 }
 
+/// The sources behind a group of candidates, each once, in the order first seen: the row says "Claude Code, Codex" for
+/// a repository with history from both however its checkouts interleave (`new Set(candidates.flatMap(sources))`).
+pub fn sources_of<'a>(candidates: &[&'a Candidate]) -> Vec<&'a str> {
+    let mut sources: Vec<&str> = Vec::new();
+    for source in candidates.iter().flat_map(|candidate| candidate.sources.iter().map(String::as_str)) {
+        if !sources.contains(&source) {
+            sources.push(source);
+        }
+    }
+    sources
+}
+
 /// `normalizeProjectPathForComparison`: dispatch form, and on Windows paths lowercase with backslashes.
 pub fn comparable(path: &str) -> String {
     let normalized = normalize_project_path(path);
@@ -204,4 +216,35 @@ pub fn imported_title(count: f64) -> String {
 }
 pub fn import_label(selected: usize, importing: bool) -> String {
     if importing { "Importing\u{2026}".to_owned() } else { format!("Import {selected} {}", if selected == 1 { "project" } else { "projects" }) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn candidate(path: &str, sources: &[&str]) -> Candidate {
+        Candidate { path: path.into(), title: path.into(), project_id: None, sources: sources.iter().map(|source| source.to_string()).collect(), thread_count: 1.0, last_active_at: None, already_imported: false, git: GitField::Missing }
+    }
+
+    #[test]
+    fn a_group_lists_each_source_once_in_the_order_first_seen() {
+        let (first, second, third) = (candidate("/a", &["claudeAgent"]), candidate("/b", &["codex"]), candidate("/c", &["claudeAgent", "codex"]));
+        assert_eq!(sources_of(&[&first, &second, &first, &third]), ["claudeAgent", "codex"]);
+        assert_eq!(sources_of(&[&second, &first]), ["codex", "claudeAgent"]);
+        assert_eq!(sources_of(&[&second]), ["codex"]);
+        assert!(sources_of(&[]).is_empty());
+    }
+
+    #[test]
+    fn a_scan_with_a_codex_candidate_decodes_its_sources_and_count() {
+        let scan = Scan::decode(&serde_json::json!({"candidates":[
+            {"path":"/work/app","title":"app","sources":["claudeAgent","codex"],"threadCount":7,"lastActiveAt":"2026-08-24T10:00:00.000Z","alreadyImported":false,"git":null},
+            {"path":"/work/other","title":"other","sources":["codex"],"threadCount":2,"lastActiveAt":null,"alreadyImported":true,"projectId":"p"}],
+            "scannedAt":"2026-08-24T10:00:00.000Z","truncated":true}))
+        .unwrap();
+        assert!(scan.truncated);
+        let seen: Vec<_> = scan.candidates.iter().map(|candidate| (candidate.sources.clone(), candidate.thread_count)).collect();
+        assert_eq!(seen, [(vec!["claudeAgent".to_owned(), "codex".to_owned()], 7.0), (vec!["codex".to_owned()], 2.0)]);
+        assert_eq!(scan.candidates[1].git, GitField::Missing);
+    }
 }
